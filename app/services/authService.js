@@ -1,0 +1,40 @@
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+class AuthService {
+    // Hash password
+    static async hashPassword(password) {
+        const saltRounds = 10;
+        return await bcrypt.hash(password, saltRounds);
+    }
+
+    // Compare password
+    static async comparePassword(password, hashedPassword) {
+        return await bcrypt.compare(password, hashedPassword);
+    }
+
+    // Generate JWT token
+    static generateToken(user) {
+        const payload = {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role || 'user'
+        };
+        return jwt.sign(payload, process.env.JWT_SECRET || 'your-secret-key-change-in-production', {
+            expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+        });
+    }
+
+    // Verify JWT token
+    static verifyToken(token) {
+        try {
+            return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+        } catch (error) {
+            throw new Error('Invalid or expired token');
+        }
+    }
+}
+
+module.exports = AuthService;
+
