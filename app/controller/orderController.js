@@ -1,5 +1,6 @@
 const OrderModel = require('../model/orderModel');
 const FruitModel = require('../model/fruitModel');
+const InvoiceController = require('./invoiceController');
 const pool = require('../config/database');
 
 class OrderController {
@@ -248,6 +249,21 @@ class OrderController {
             // Update order status
             const updatedOrder = await OrderModel.updateOrderStatus(id, status);
             const completeOrder = await OrderModel.getOrderById(id);
+
+            // Auto-generate invoice when status changes to "paid"
+            if (status === 'paid' && oldStatus !== 'paid') {
+                try {
+                    await InvoiceController.generateInvoice(id, {
+                        user_id: completeOrder.user_id,
+                        total_amount: completeOrder.total_amount,
+                        payment_method: completeOrder.payment_method,
+                        notes: completeOrder.notes
+                    });
+                } catch (invoiceError) {
+                    // Log error but don't fail the order status update
+                    console.error('Failed to generate invoice:', invoiceError.message);
+                }
+            }
 
             res.status(200).json({
                 success: true,
