@@ -6,6 +6,7 @@ const UserModel = require('./app/model/userModel');
 const authRoutes = require('./app/routes/authRoutes');
 const userRoutes = require('./app/routes/userRoutes');
 const fruitRoutes = require('./app/routes/fruitRoutes');
+const orderRoutes = require('./app/routes/orderRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,6 +19,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/fruits', fruitRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
