@@ -13,6 +13,12 @@ router.get('/my-orders', authMiddleware, OrderController.getMyOrders);
 // Get all orders (admin only) - must be before /:id
 router.get('/all', requireAdmin, OrderController.getAllOrders);
 
+// Get QR code for order payment (PromptPay) - must be before /:id
+router.get('/:id/qr-code', authMiddleware, OrderController.getOrderQRCode);
+
+// Get QR code as image - must be before /:id
+router.get('/:id/qr-code/image', authMiddleware, OrderController.getOrderQRCodeImage);
+
 // Get order by ID (owner or admin)
 router.get('/:id', authMiddleware, OrderController.getOrderById);
 

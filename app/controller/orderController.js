@@ -1,6 +1,7 @@
 const OrderModel = require('../model/orderModel');
 const FruitModel = require('../model/fruitModel');
 const InvoiceController = require('./invoiceController');
+const QRPromptPayService = require('../services/qrPromptPayService');
 const pool = require('../config/database');
 
 class OrderController {
@@ -279,6 +280,113 @@ class OrderController {
             });
         } finally {
             client.release();
+        }
+    }
+
+    // Get QR Code for order payment (PromptPay)
+    static async getOrderQRCode(req, res) {
+        try {
+            const { id } = req.params;
+            const userId = req.user.id;
+            const userRole = req.user.role;
+
+            // Get order
+            const order = await OrderModel.getOrderById(id);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Authorization: Users can only get QR code for their own orders, admins can get for any order
+            if (userRole !== 'admin' && order.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied. You can only get QR code for your own orders'
+                });
+            }
+
+            // Only generate QR code for pending orders
+            if (order.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `QR code can only be generated for pending orders. Current status: ${order.status}`
+                });
+            }
+
+            // Generate QR code
+            const qrCodeData = await QRPromptPayService.generateQRCodeForOrder(order);
+
+            res.status(200).json({
+                success: true,
+                message: 'QR code generated successfully',
+                data: {
+                    order_id: order.id,
+                    order_number: order.order_number,
+                    amount: order.total_amount,
+                    qr_code: qrCodeData.qrCodeDataURL, // Base64 data URL for frontend display
+                    payload: qrCodeData.payload, // PromptPay payload string
+                    phone_number: qrCodeData.phoneNumber
+                }
+            });
+        } catch (error) {
+            console.error('Get order QR code error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
+    // Get QR Code as image (for direct image display/download)
+    static async getOrderQRCodeImage(req, res) {
+        try {
+            const { id } = req.params;
+            const userId = req.user.id;
+            const userRole = req.user.role;
+
+            // Get order
+            const order = await OrderModel.getOrderById(id);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Authorization: Users can only get QR code for their own orders, admins can get for any order
+            if (userRole !== 'admin' && order.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied. You can only get QR code for your own orders'
+                });
+            }
+
+            // Only generate QR code for pending orders
+            if (order.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `QR code can only be generated for pending orders. Current status: ${order.status}`
+                });
+            }
+
+            // Generate QR code
+            const qrCodeData = await QRPromptPayService.generateQRCodeForOrder(order);
+
+            // Set response headers for image
+            res.setHeader('Content-Type', 'image/png');
+            res.setHeader('Content-Disposition', `inline; filename=qr-promptpay-${order.order_number}.png`);
+
+            res.send(qrCodeData.qrCodeBuffer);
+        } catch (error) {
+            console.error('Get order QR code image error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
         }
     }
 }
