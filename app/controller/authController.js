@@ -5,13 +5,13 @@ class AuthController {
     // Register new user
     static async register(req, res) {
         try {
-            const { username, email, password } = req.body;
+            const { username, email, password, first_name, last_name } = req.body;
 
             // Validation
-            if (!username || !email || !password) {
+            if (!username || !email || !password || !first_name || !last_name) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Please provide username, email, and password'
+                    message: 'Please provide username, email, password, first_name, and last_name'
                 });
             }
 
@@ -39,7 +39,9 @@ class AuthController {
             const user = await UserModel.create({
                 username,
                 email,
-                password: hashedPassword
+                password: hashedPassword,
+                first_name,
+                last_name
             });
 
             // Generate token
@@ -53,6 +55,8 @@ class AuthController {
                         id: user.id,
                         username: user.username,
                         email: user.email,
+                        first_name: user.first_name,
+                        last_name: user.last_name,
                         role: user.role
                     },
                     token
@@ -110,6 +114,8 @@ class AuthController {
                         id: user.id,
                         username: user.username,
                         email: user.email,
+                        first_name: user.first_name,
+                        last_name: user.last_name,
                         role: user.role
                     },
                     token

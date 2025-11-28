@@ -8,6 +8,7 @@ const userRoutes = require('./app/routes/userRoutes');
 const fruitRoutes = require('./app/routes/fruitRoutes');
 const orderRoutes = require('./app/routes/orderRoutes');
 const invoiceRoutes = require('./app/routes/invoiceRoutes');
+const cors = require('cors');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -15,6 +16,9 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// CORS middleware
+app.use(cors());
 
 // Routes
 app.use('/api/auth', authRoutes);

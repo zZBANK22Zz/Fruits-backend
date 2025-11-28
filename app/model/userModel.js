@@ -17,20 +17,20 @@ class UserModel {
 
     // Find user by ID
     static async findById(id) {
-        const query = 'SELECT id, username, email, role, created_at FROM users WHERE id = $1';
+        const query = 'SELECT id, username, email, first_name, last_name, role, created_at FROM users WHERE id = $1';
         const result = await pool.query(query, [id]);
         return result.rows[0];
     }
 
     // Create new user
     static async create(userData) {
-        const { username, email, password, role = 'user' } = userData;
+        const { username, email, password, first_name, last_name, role = 'user' } = userData;
         const query = `
-            INSERT INTO users (username, email, password, role)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, username, email, role, created_at
+            INSERT INTO users (username, email, password, first_name, last_name, role)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, username, email, first_name, last_name, role, created_at
         `;
-        const result = await pool.query(query, [username, email, password, role]);
+        const result = await pool.query(query, [username, email, password, first_name, last_name, role]);
         return result.rows[0];
     }
 
@@ -48,14 +48,14 @@ class UserModel {
 
     //Edit user
     static async editUser(userId, userData) {
-        const { username, email, password } = userData;
+        const { username, email, password, first_name, last_name } = userData;
         const query = `
             UPDATE users 
-            SET username = $1, email = $2, password = $3, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $4
-            RETURNING id, username, email, role, updated_at
+            SET username = $1, email = $2, password = $3, first_name = $4, last_name = $5, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $6
+            RETURNING id, username, email, first_name, last_name, role, updated_at
         `;
-        const result = await pool.query(query, [username, email, password, userId]);
+        const result = await pool.query(query, [username, email, password, first_name, last_name, userId]);
         return result.rows[0];
     }
 
@@ -72,7 +72,7 @@ class UserModel {
     //Get all users
     static async getAllUsers() {
         const query = `
-            SELECT id, username, email, role, created_at FROM users
+            SELECT id, username, email, first_name, last_name, role, created_at FROM users
         `;
         const result = await pool.query(query);
         return result.rows;

@@ -16,7 +16,9 @@ curl -X POST http://localhost:3000/api/auth/register \
   -d '{
     "username": "john_doe",
     "email": "john@example.com",
-    "password": "password123"
+    "password": "password123",
+    "first_name": "John",
+    "last_name": "Doe"
   }'
 ```
 
@@ -25,7 +27,9 @@ curl -X POST http://localhost:3000/api/auth/register \
 {
   "username": "john_doe",
   "email": "john@example.com",
-  "password": "password123"
+  "password": "password123",
+  "first_name": "John",
+  "last_name": "Doe"
 }
 ```
 
@@ -39,10 +43,20 @@ curl -X POST http://localhost:3000/api/auth/register \
       "id": 1,
       "username": "john_doe",
       "email": "john@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
       "role": "user"
     },
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   }
+}
+```
+
+**Error Response (400 Bad Request - Missing Fields):**
+```json
+{
+  "success": false,
+  "message": "Please provide username, email, password, first_name, and last_name"
 }
 ```
 
@@ -79,6 +93,8 @@ curl -X POST http://localhost:3000/api/auth/login \
       "id": 1,
       "username": "john_doe",
       "email": "john@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
       "role": "user"
     },
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -113,6 +129,8 @@ Authorization: Bearer <your_token>
       "id": 1,
       "username": "john_doe",
       "email": "john@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
       "role": "user",
       "created_at": "2024-01-15T10:30:00.000Z"
     }
@@ -147,6 +165,8 @@ Authorization: Bearer <admin_token>
         "id": 1,
         "username": "john_doe",
         "email": "john@example.com",
+        "first_name": "John",
+        "last_name": "Doe",
         "role": "user",
         "created_at": "2024-01-15T10:30:00.000Z"
       },
@@ -154,6 +174,8 @@ Authorization: Bearer <admin_token>
         "id": 2,
         "username": "admin",
         "email": "admin@example.com",
+        "first_name": "Admin",
+        "last_name": "User",
         "role": "admin",
         "created_at": "2024-01-14T08:20:00.000Z"
       }
@@ -194,6 +216,8 @@ curl -X PUT http://localhost:3000/api/users/1/role \
       "id": 1,
       "username": "john_doe",
       "email": "john@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
       "role": "admin",
       "updated_at": "2024-01-15T11:00:00.000Z"
     }
@@ -214,7 +238,9 @@ curl -X PUT http://localhost:3000/api/users/1 \
   -d '{
     "username": "john_updated",
     "email": "john.updated@example.com",
-    "password": "newpassword123"
+    "password": "newpassword123",
+    "first_name": "John",
+    "last_name": "Updated"
   }'
 ```
 
@@ -223,7 +249,9 @@ curl -X PUT http://localhost:3000/api/users/1 \
 {
   "username": "john_updated",
   "email": "john.updated@example.com",
-  "password": "newpassword123"
+  "password": "newpassword123",
+  "first_name": "John",
+  "last_name": "Updated"
 }
 ```
 
@@ -237,6 +265,8 @@ curl -X PUT http://localhost:3000/api/users/1 \
       "id": 1,
       "username": "john_updated",
       "email": "john.updated@example.com",
+      "first_name": "John",
+      "last_name": "Updated",
       "role": "user",
       "updated_at": "2024-01-15T11:15:00.000Z"
     }

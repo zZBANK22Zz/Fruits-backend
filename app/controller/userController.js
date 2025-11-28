@@ -74,7 +74,7 @@ class UserController {
     static async editUser(req, res) {
         try {
             const { userId } = req.params;
-            const { username, email, password } = req.body;
+            const { username, email, password, first_name, last_name } = req.body;
             const currentUserId = req.user.id;
             const currentUserRole = req.user.role;
 
@@ -131,7 +131,9 @@ class UserController {
             const updatedUser = await UserModel.editUser(userId, {
                 username,
                 email,
-                password: hashedPassword
+                password: hashedPassword,
+                first_name: first_name !== undefined ? first_name : existingUser.first_name,
+                last_name: last_name !== undefined ? last_name : existingUser.last_name
             });
 
             res.status(200).json({
