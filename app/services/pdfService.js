@@ -75,10 +75,14 @@ class PDFService {
                         yPosition = 50;
                     }
                     
+                    // Convert price and subtotal to numbers (they come as strings from DB)
+                    const price = parseFloat(item.price) || 0;
+                    const subtotal = parseFloat(item.subtotal) || 0;
+                    
                     doc.text(item.fruit_name || `Item ${index + 1}`, 50, yPosition);
                     doc.text(String(item.quantity), 250, yPosition);
-                    doc.text(`฿${item.price.toFixed(2)}`, 320, yPosition);
-                    doc.text(`฿${item.subtotal.toFixed(2)}`, 400, yPosition, { align: 'right' });
+                    doc.text(`฿${price.toFixed(2)}`, 320, yPosition);
+                    doc.text(`฿${subtotal.toFixed(2)}`, 400, yPosition, { align: 'right' });
                     yPosition += 20;
                 });
 
@@ -91,12 +95,15 @@ class PDFService {
                 
                 doc.moveDown();
 
-                // Totals
+                // Totals (convert to numbers as they come as strings from DB)
+                const invoiceSubtotal = parseFloat(invoice.subtotal) || 0;
+                const invoiceTotal = parseFloat(invoice.total_amount) || 0;
+                
                 doc.fontSize(12);
-                doc.text(`Subtotal: ฿${invoice.subtotal.toFixed(2)}`, { align: 'right' });
+                doc.text(`Subtotal: ฿${invoiceSubtotal.toFixed(2)}`, { align: 'right' });
                 doc.moveDown(0.5);
                 doc.fontSize(14).font('Helvetica-Bold');
-                doc.text(`Total: ฿${invoice.total_amount.toFixed(2)}`, { align: 'right' });
+                doc.text(`Total: ฿${invoiceTotal.toFixed(2)}`, { align: 'right' });
                 doc.font('Helvetica').fontSize(12);
                 doc.moveDown();
 
