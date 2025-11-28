@@ -6,6 +6,7 @@ const UserModel = require('./app/model/userModel');
 const authRoutes = require('./app/routes/authRoutes');
 const userRoutes = require('./app/routes/userRoutes');
 const fruitRoutes = require('./app/routes/fruitRoutes');
+const categoryRoutes = require('./app/routes/categoryRoutes');
 const orderRoutes = require('./app/routes/orderRoutes');
 const invoiceRoutes = require('./app/routes/invoiceRoutes');
 const cors = require('cors');
@@ -24,6 +25,7 @@ app.use(cors());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/fruits', fruitRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/invoices', invoiceRoutes);
 
