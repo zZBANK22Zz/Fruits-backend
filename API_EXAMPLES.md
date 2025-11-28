@@ -521,6 +521,417 @@ curl -X DELETE http://localhost:3000/api/fruits/1 \
 
 ---
 
+## 🛒 Order Management Endpoints
+
+### 13. Create Order (Authenticated Users)
+**POST** `/api/orders`
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/api/orders \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {
+        "fruit_id": 1,
+        "quantity": 2
+      },
+      {
+        "fruit_id": 2,
+        "quantity": 3
+      }
+    ],
+    "shipping_address": "123 Main Street",
+    "shipping_city": "Bangkok",
+    "shipping_postal_code": "10110",
+    "shipping_country": "Thailand",
+    "payment_method": "Thai QR PromptPay",
+    "notes": "Please handle with care"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "items": [
+    {
+      "fruit_id": 1,
+      "quantity": 2
+    },
+    {
+      "fruit_id": 2,
+      "quantity": 3
+    }
+  ],
+  "shipping_address": "123 Main Street",
+  "shipping_city": "Bangkok",
+  "shipping_postal_code": "10110",
+  "shipping_country": "Thailand",
+  "payment_method": "Thai QR PromptPay",
+  "notes": "Please handle with care"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Order created successfully",
+  "data": {
+    "order": {
+      "id": 1,
+      "user_id": 1,
+      "order_number": "ORD-2024-0115-1",
+      "status": "pending",
+      "total_amount": 10.25,
+      "shipping_address": "123 Main Street",
+      "shipping_city": "Bangkok",
+      "shipping_postal_code": "10110",
+      "shipping_country": "Thailand",
+      "payment_method": "Thai QR PromptPay",
+      "notes": "Please handle with care",
+      "created_at": "2024-01-15T14:30:00.000Z",
+      "updated_at": "2024-01-15T14:30:00.000Z",
+      "username": "john_doe",
+      "email": "john@example.com",
+      "items": [
+        {
+          "id": 1,
+          "order_id": 1,
+          "fruit_id": 1,
+          "quantity": 2,
+          "price": 2.50,
+          "subtotal": 5.00,
+          "fruit_name": "Apple",
+          "fruit_image": "/uploads/fruits/apple.jpg"
+        },
+        {
+          "id": 2,
+          "order_id": 1,
+          "fruit_id": 2,
+          "quantity": 3,
+          "price": 1.75,
+          "subtotal": 5.25,
+          "fruit_name": "Banana",
+          "fruit_image": "/uploads/fruits/banana.jpg"
+        }
+      ]
+    }
+  }
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "Order items are required"
+}
+```
+
+**Error Response (400 Bad Request - Insufficient Stock):**
+```json
+{
+  "success": false,
+  "message": "Insufficient stock for Apple. Available: 5, Requested: 10"
+}
+```
+
+---
+
+### 14. Get My Orders (Authenticated Users)
+**GET** `/api/orders/my-orders`
+
+**Request:**
+```bash
+curl -X GET http://localhost:3000/api/orders/my-orders \
+  -H "Authorization: Bearer <your_token>"
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Orders fetched successfully",
+  "data": {
+    "orders": [
+      {
+        "id": 1,
+        "user_id": 1,
+        "order_number": "ORD-2024-0115-1",
+        "status": "pending",
+        "total_amount": 10.25,
+        "shipping_address": "123 Main Street",
+        "shipping_city": "Bangkok",
+        "shipping_postal_code": "10110",
+        "shipping_country": "Thailand",
+        "payment_method": "Thai QR PromptPay",
+        "notes": "Please handle with care",
+        "created_at": "2024-01-15T14:30:00.000Z",
+        "updated_at": "2024-01-15T14:30:00.000Z",
+        "item_count": 2
+      },
+      {
+        "id": 2,
+        "user_id": 1,
+        "order_number": "ORD-2024-0114-2",
+        "status": "confirmed",
+        "total_amount": 5.50,
+        "shipping_address": "456 Second Street",
+        "shipping_city": "Bangkok",
+        "shipping_postal_code": "10120",
+        "shipping_country": "Thailand",
+        "payment_method": "Thai QR PromptPay",
+        "notes": null,
+        "created_at": "2024-01-14T10:20:00.000Z",
+        "updated_at": "2024-01-14T11:00:00.000Z",
+        "item_count": 1
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 15. Get Order by ID (Owner or Admin)
+**GET** `/api/orders/:id`
+
+**Request:**
+```bash
+curl -X GET http://localhost:3000/api/orders/1 \
+  -H "Authorization: Bearer <your_token>"
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Order fetched successfully",
+  "data": {
+    "order": {
+      "id": 1,
+      "user_id": 1,
+      "order_number": "ORD-2024-0115-1",
+      "status": "pending",
+      "total_amount": 10.25,
+      "shipping_address": "123 Main Street",
+      "shipping_city": "Bangkok",
+      "shipping_postal_code": "10110",
+      "shipping_country": "Thailand",
+      "payment_method": "Thai QR PromptPay",
+      "notes": "Please handle with care",
+      "created_at": "2024-01-15T14:30:00.000Z",
+      "updated_at": "2024-01-15T14:30:00.000Z",
+      "username": "john_doe",
+      "email": "john@example.com",
+      "items": [
+        {
+          "id": 1,
+          "order_id": 1,
+          "fruit_id": 1,
+          "quantity": 2,
+          "price": 2.50,
+          "subtotal": 5.00,
+          "fruit_name": "Apple",
+          "fruit_image": "/uploads/fruits/apple.jpg"
+        },
+        {
+          "id": 2,
+          "order_id": 1,
+          "fruit_id": 2,
+          "quantity": 3,
+          "price": 1.75,
+          "subtotal": 5.25,
+          "fruit_name": "Banana",
+          "fruit_image": "/uploads/fruits/banana.jpg"
+        }
+      ]
+    }
+  }
+}
+```
+
+**Error Response (403 Forbidden):**
+```json
+{
+  "success": false,
+  "message": "Access denied. You can only view your own orders"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "success": false,
+  "message": "Order not found"
+}
+```
+
+---
+
+### 16. Get All Orders (Admin Only)
+**GET** `/api/orders/all`
+
+**Request:**
+```bash
+curl -X GET http://localhost:3000/api/orders/all \
+  -H "Authorization: Bearer <admin_token>"
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "All orders fetched successfully",
+  "data": {
+    "orders": [
+      {
+        "id": 1,
+        "user_id": 1,
+        "order_number": "ORD-2024-0115-1",
+        "status": "pending",
+        "total_amount": 10.25,
+        "shipping_address": "123 Main Street",
+        "shipping_city": "Bangkok",
+        "shipping_postal_code": "10110",
+        "shipping_country": "Thailand",
+        "payment_method": "Thai QR PromptPay",
+        "notes": "Please handle with care",
+        "created_at": "2024-01-15T14:30:00.000Z",
+        "updated_at": "2024-01-15T14:30:00.000Z",
+        "username": "john_doe",
+        "email": "john@example.com",
+        "item_count": 2
+      },
+      {
+        "id": 2,
+        "user_id": 2,
+        "order_number": "ORD-2024-0114-2",
+        "status": "confirmed",
+        "total_amount": 8.00,
+        "shipping_address": "789 Third Avenue",
+        "shipping_city": "Bangkok",
+        "shipping_postal_code": "10130",
+        "shipping_country": "Thailand",
+        "payment_method": "Thai QR PromptPay",
+        "notes": null,
+        "created_at": "2024-01-14T10:20:00.000Z",
+        "updated_at": "2024-01-14T11:00:00.000Z",
+        "username": "jane_smith",
+        "email": "jane@example.com",
+        "item_count": 1
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 17. Update Order Status (Admin Only)
+**PUT** `/api/orders/:id/status`
+
+**Request:**
+```bash
+curl -X PUT http://localhost:3000/api/orders/1/status \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "confirmed"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "status": "confirmed"
+}
+```
+
+**Valid Status Values:**
+- `pending` - Order created, waiting for payment
+- `confirmed` - Payment confirmed, stock reduced
+- `processing` - Order being prepared
+- `paid` - Payment completed
+- `cancelled` - Order cancelled (stock restored if was confirmed)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Order status updated successfully",
+  "data": {
+    "order": {
+      "id": 1,
+      "user_id": 1,
+      "order_number": "ORD-2024-0115-1",
+      "status": "confirmed",
+      "total_amount": 10.25,
+      "shipping_address": "123 Main Street",
+      "shipping_city": "Bangkok",
+      "shipping_postal_code": "10110",
+      "shipping_country": "Thailand",
+      "payment_method": "Thai QR PromptPay",
+      "notes": "Please handle with care",
+      "created_at": "2024-01-15T14:30:00.000Z",
+      "updated_at": "2024-01-15T15:00:00.000Z",
+      "username": "john_doe",
+      "email": "john@example.com",
+      "items": [
+        {
+          "id": 1,
+          "order_id": 1,
+          "fruit_id": 1,
+          "quantity": 2,
+          "price": 2.50,
+          "subtotal": 5.00,
+          "fruit_name": "Apple",
+          "fruit_image": "/uploads/fruits/apple.jpg"
+        },
+        {
+          "id": 2,
+          "order_id": 1,
+          "fruit_id": 2,
+          "quantity": 3,
+          "price": 1.75,
+          "subtotal": 5.25,
+          "fruit_name": "Banana",
+          "fruit_image": "/uploads/fruits/banana.jpg"
+        }
+      ]
+    }
+  }
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "Invalid status. Must be one of: pending, confirmed, processing, paid, cancelled"
+}
+```
+
+**Error Response (400 Bad Request - Insufficient Stock):**
+```json
+{
+  "success": false,
+  "message": "Insufficient stock for fruit ID 1"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "success": false,
+  "message": "Order not found"
+}
+```
+
+---
+
 ## 🔒 Authentication Notes
 
 - **Public Endpoints**: No authentication required
@@ -529,6 +940,9 @@ curl -X DELETE http://localhost:3000/api/fruits/1 \
 
 - **Authenticated Endpoints**: Require `Authorization: Bearer <token>` header
   - All `/api/users/*` endpoints (except admin-only ones)
+  - `POST /api/orders` (create order)
+  - `GET /api/orders/my-orders` (get user's orders)
+  - `GET /api/orders/:id` (get order by ID - owner or admin)
 
 - **Admin Only Endpoints**: Require admin token
   - `GET /api/users` (get all users)
@@ -536,6 +950,8 @@ curl -X DELETE http://localhost:3000/api/fruits/1 \
   - `POST /api/fruits`
   - `PUT /api/fruits/:id`
   - `DELETE /api/fruits/:id`
+  - `GET /api/orders/all` (get all orders)
+  - `PUT /api/orders/:id/status` (update order status)
 
 ---
 

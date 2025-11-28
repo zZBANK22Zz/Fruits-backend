@@ -84,6 +84,38 @@ class FruitModel {
         const result = await pool.query(query, [id]);
         return result.rows[0];
     }
+
+    // Reduce stock (when order is confirmed)
+    static async reduceStock(fruitId, quantity) {
+        const query = `
+            UPDATE fruits 
+            SET stock = stock - $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2 AND stock >= $1
+            RETURNING *
+        `;
+        const result = await pool.query(query, [quantity, fruitId]);
+        return result.rows[0];
+    }
+
+    // Restore stock (when order is cancelled)
+    static async restoreStock(fruitId, quantity) {
+        const query = `
+            UPDATE fruits 
+            SET stock = stock + $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING *
+        `;
+        const result = await pool.query(query, [quantity, fruitId]);
+        return result.rows[0];
+    }
+
+    // Check stock availability
+    static async checkStock(fruitId, quantity) {
+        const query = 'SELECT stock FROM fruits WHERE id = $1';
+        const result = await pool.query(query, [fruitId]);
+        if (result.rows.length === 0) return null;
+        return result.rows[0].stock >= quantity;
+    }
 }
 
 module.exports = FruitModel;
