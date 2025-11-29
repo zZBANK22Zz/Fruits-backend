@@ -5,7 +5,17 @@ class FruitController {
     // Get all fruits
     static async getAllFruits(req, res) {
         try {
-            const fruits = await FruitModel.getAllFruits();
+            const { category } = req.query;
+            
+            let fruits;
+            if (category) {
+                // Filter by category name
+                fruits = await FruitModel.getFruitsByCategoryName(category);
+            } else {
+                // Get all fruits
+                fruits = await FruitModel.getAllFruits();
+            }
+            
             res.status(200).json({
                 success: true,
                 message: 'Fruits fetched successfully',

@@ -52,6 +52,29 @@ class FruitModel {
         return result.rows[0];
     }
 
+    //Get fruits by category name
+    static async getFruitsByCategoryName(categoryName) {
+        const query = `
+            SELECT 
+                f.id,
+                f.name,
+                f.description,
+                f.price,
+                f.stock,
+                f.image_url,
+                f.category_id,
+                c.name as category_name,
+                f.created_at,
+                f.updated_at
+            FROM fruits f
+            LEFT JOIN categories c ON f.category_id = c.id
+            WHERE c.name = $1
+            ORDER BY f.id
+        `;
+        const result = await pool.query(query, [categoryName]);
+        return result.rows;
+    }
+
     //Create new fruit
     static async createFruit(fruitData) {
         const { name, description, price, stock, image_url, category_id } = fruitData;

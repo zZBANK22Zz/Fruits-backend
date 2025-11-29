@@ -283,6 +283,76 @@ class OrderController {
         }
     }
 
+    // Confirm payment (user can confirm their own order payment)
+    static async confirmPayment(req, res) {
+        const client = await pool.connect();
+        try {
+            const { id } = req.params;
+            const userId = req.user.id;
+
+            // Get current order
+            const currentOrder = await OrderModel.getOrderById(id);
+            if (!currentOrder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Verify order belongs to user
+            if (currentOrder.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'You do not have permission to confirm this order'
+                });
+            }
+
+            // Only allow confirming if order is in pending status
+            if (currentOrder.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `Cannot confirm payment. Order status is already: ${currentOrder.status}`
+                });
+            }
+
+            const oldStatus = currentOrder.status;
+
+            // Update order status to 'paid'
+            const updatedOrder = await OrderModel.updateOrderStatus(id, 'paid');
+            const completeOrder = await OrderModel.getOrderById(id);
+
+            // Auto-generate invoice when status changes to "paid"
+            if (oldStatus !== 'paid') {
+                try {
+                    await InvoiceController.generateInvoice(id, {
+                        user_id: completeOrder.user_id,
+                        total_amount: completeOrder.total_amount,
+                        payment_method: completeOrder.payment_method,
+                        notes: completeOrder.notes
+                    });
+                } catch (invoiceError) {
+                    // Log error but don't fail the order status update
+                    console.error('Failed to generate invoice:', invoiceError.message);
+                }
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Payment confirmed successfully. Invoice generated.',
+                data: { order: completeOrder }
+            });
+        } catch (error) {
+            console.error('Confirm payment error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        } finally {
+            client.release();
+        }
+    }
+
     // Get QR Code for order payment (PromptPay)
     static async getOrderQRCode(req, res) {
         try {

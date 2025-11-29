@@ -6,7 +6,13 @@ const pool = new Pool({
     host: process.env.POSTGRES_HOST,
     port: process.env.POSTGRES_PORT,
     database: process.env.POSTGRES_DB,
-    ssl: false
+    ssl: false,
+    client_encoding: 'UTF8'
+});
+
+// Ensure UTF-8 encoding for all queries
+pool.on('connect', (client) => {
+    client.query('SET client_encoding TO UTF8');
 });
 
 module.exports = pool;

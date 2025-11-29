@@ -22,6 +22,9 @@ router.get('/:id/qr-code/image', authMiddleware, OrderController.getOrderQRCodeI
 // Get order by ID (owner or admin)
 router.get('/:id', authMiddleware, OrderController.getOrderById);
 
+// Confirm payment (user can confirm their own order)
+router.post('/:id/confirm-payment', authMiddleware, OrderController.confirmPayment);
+
 // Update order status (admin only)
 router.put('/:id/status', requireAdmin, OrderController.updateOrderStatus);
 

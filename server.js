@@ -9,6 +9,7 @@ const fruitRoutes = require('./app/routes/fruitRoutes');
 const categoryRoutes = require('./app/routes/categoryRoutes');
 const orderRoutes = require('./app/routes/orderRoutes');
 const invoiceRoutes = require('./app/routes/invoiceRoutes');
+const OrderCleanupService = require('./app/services/orderCleanupService');
 const cors = require('cors');
 
 const app = express();
@@ -43,6 +44,9 @@ async function startServer() {
         // Test database connection
         await pool.connect();
         console.log('Connected to the database');
+
+        // Start order cleanup job (rejects orders not paid within 5 minutes)
+        OrderCleanupService.startCleanupJob();
 
         // Start server
         app.listen(port, () => {

@@ -181,6 +181,53 @@ class OrderModel {
         const result = await pool.query(query, [orderId]);
         return result.rows;
     }
+
+    // Get expired pending orders (older than specified minutes)
+    static async getExpiredPendingOrders(minutes = 5) {
+        // Ensure minutes is a valid number to prevent SQL injection
+        const minutesValue = parseInt(minutes, 10) || 5;
+        if (minutesValue < 0 || minutesValue > 1440) {
+            throw new Error('Invalid minutes value. Must be between 0 and 1440 (24 hours)');
+        }
+        
+        const query = `
+            SELECT id, order_number, created_at
+            FROM orders
+            WHERE status = 'pending'
+            AND created_at < NOW() - INTERVAL '${minutesValue} minutes'
+        `;
+        const result = await pool.query(query);
+        return result.rows;
+    }
+
+    // Batch update orders to cancelled status (for expired unpaid orders)
+    static async batchUpdateOrdersToCancelled(orderIds) {
+        if (!orderIds || orderIds.length === 0) {
+            return [];
+        }
+
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            const placeholders = orderIds.map((_, index) => `$${index + 1}`).join(', ');
+            const query = `
+                UPDATE orders 
+                SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+                WHERE id IN (${placeholders})
+                RETURNING id, order_number, status
+            `;
+            
+            const result = await client.query(query, orderIds);
+            await client.query('COMMIT');
+            return result.rows;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
 }
 
 module.exports = OrderModel;
