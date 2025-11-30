@@ -99,7 +99,8 @@ class PDFService {
                 // Create PDF with UTF-8 support
                 const doc = new PDFDocument({ 
                     margin: 50,
-                    autoFirstPage: true
+                    autoFirstPage: true,
+                    size: 'A4' // Standard A4 size
                 });
                 const buffers = [];
                 
@@ -115,22 +116,53 @@ class PDFService {
                 });
                 doc.on('error', reject);
 
-                // Header
-                doc.font(regularFont).fontSize(24).text('INVOICE', { align: 'center' });
-                doc.moveDown();
-
-                // Invoice details
-                doc.font(regularFont).fontSize(12);
-                doc.text(`Invoice Number: ${invoice.invoice_number || 'N/A'}`, { align: 'left' });
+                // Page dimensions
+                const pageWidth = doc.page.width;
+                const pageHeight = doc.page.height;
+                const margin = 50;
+                const contentWidth = pageWidth - (margin * 2);
                 
-                // Format invoice date properly
-                let invoiceDateStr = 'N/A';
+                // Load logo image
+                const logoPath = path.join(__dirname, '../../public/images/Logo.png');
+                let logoHeight = 0;
+                const logoWidth = 100; // Increased from 70 to 100 for bigger logo
+                const headerTop = 50;
+                
+                // Header Section with Logo and Shop Name
+                if (fs.existsSync(logoPath)) {
+                    try {
+                        doc.image(logoPath, margin, headerTop, { 
+                            width: logoWidth,
+                            height: logoWidth,
+                            fit: [logoWidth, logoWidth]
+                        });
+                        logoHeight = logoWidth;
+                    } catch (e) {
+                        console.warn('[PDF Service] Could not load logo image:', e.message);
+                    }
+                }
+                
+                // Shop Name - Large bold Thai text next to logo, aligned on same baseline
+                doc.font(boldFont).fontSize(20).fillColor('black'); // Slightly larger font
+                const shopNameX = margin + logoWidth + 25; // More spacing from logo
+                // Align text to center vertically with logo - moved up by 2 cm (56 points)
+                const shopNameY = headerTop + (logoHeight / 2) - 10 - 23; // Moved up by 2 cm
+                doc.text('ร้านผลไม้ดี', shopNameX, shopNameY);
+                
+                // Invoice/Order ID in top-right corner
+                doc.font(regularFont).fontSize(11).fillColor('#666666');
+                const invoiceId = invoice.invoice_number || invoice.order_number || 'N/A';
+                const idText = `เลขที่: ${invoiceId}`;
+                doc.text(idText, pageWidth - margin, headerTop, { align: 'right', width: 200 });
+                
+                // Date below ID
+                let invoiceDateStr = '';
                 if (invoice.issue_date) {
                     try {
                         const invoiceDate = invoice.issue_date instanceof Date 
                             ? invoice.issue_date 
                             : new Date(invoice.issue_date);
-                        invoiceDateStr = invoiceDate.toLocaleDateString('en-US', { 
+                        invoiceDateStr = invoiceDate.toLocaleDateString('th-TH', { 
                             year: 'numeric', 
                             month: 'long', 
                             day: 'numeric' 
@@ -139,139 +171,131 @@ class PDFService {
                         invoiceDateStr = invoice.issue_date;
                     }
                 }
-                doc.text(`Invoice Date: ${invoiceDateStr}`, { align: 'left' });
-                doc.text(`Order Number: ${invoice.order_number || 'N/A'}`, { align: 'left' });
-                doc.moveDown();
-
-                // Customer Information
-                doc.font(regularFont).fontSize(14).text('Bill To:', { underline: true });
-                doc.fontSize(12);
-                const username = String(invoice.username || 'Customer');
-                const email = String(invoice.email || '');
-                doc.text(username);
-                doc.text(email);
-                doc.moveDown();
-
-                // Shipping Address
-                if (invoice.shipping_address) {
-                    doc.font(regularFont).fontSize(14).text('Shipping Address:', { underline: true });
-                    doc.fontSize(12);
-                    const address = String(invoice.shipping_address || '');
-                    doc.text(address);
-                    if (invoice.shipping_city) {
-                        const city = String(invoice.shipping_city || '');
-                        const postalCode = String(invoice.shipping_postal_code || '');
-                        const cityLine = `${city}, ${postalCode}`.trim();
-                        if (cityLine !== ',') {
-                            doc.text(cityLine);
-                        }
-                    }
-                    if (invoice.shipping_country) {
-                        const country = String(invoice.shipping_country || '');
-                        doc.text(country);
-                    }
-                    doc.moveDown();
+                if (invoiceDateStr) {
+                    doc.font(regularFont).fontSize(10).fillColor('#666666');
+                    doc.text(`วันที่: ${invoiceDateStr}`, pageWidth - margin, headerTop + 15, { align: 'right', width: 200 });
                 }
-
-                // Items Table Header
-                doc.moveDown();
-                const tableTop = doc.y;
-                doc.font(regularFont).fontSize(12);
                 
-                // Table headers
-                doc.text('Item', 50, tableTop);
-                doc.text('Quantity', 250, tableTop);
-                doc.text('Price', 320, tableTop);
-                doc.text('Subtotal', 400, tableTop, { align: 'right' });
+                // Move down after header with spacing
+                doc.y = headerTop + logoHeight + 30;
                 
-                // Draw line under headers
-                doc.moveTo(50, doc.y + 5)
-                   .lineTo(550, doc.y + 5)
+                // Payment Method Section with background
+                const paymentSectionY = doc.y;
+                doc.roundedRect(margin, paymentSectionY, contentWidth, 35, 5)
+                   .fillColor('#f8f9fa')
+                   .fill()
+                   .fillColor('black'); // Reset fill color
+                
+                doc.font(boldFont).fontSize(12).fillColor('#333333');
+                doc.text('วิธีการชำระเงิน', margin + 15, paymentSectionY + 8);
+                doc.font(regularFont).fontSize(14).fillColor('black');
+                const paymentMethod = String(invoice.payment_method || 'QR PromptPay');
+                doc.text(paymentMethod, margin + 15, paymentSectionY + 22);
+                
+                doc.y = paymentSectionY + 45;
+                
+                // Items Section Header
+                doc.moveDown(1);
+                doc.font(boldFont).fontSize(18).fillColor('black');
+                doc.text('รายการสินค้า', { align: 'center' });
+                doc.moveDown(0.8);
+                
+                // Draw line under header
+                const headerLineY = doc.y - 5;
+                doc.moveTo(margin, headerLineY)
+                   .lineTo(pageWidth - margin, headerLineY)
+                   .lineWidth(1)
+                   .strokeColor('#333333')
                    .stroke();
                 
-                doc.moveDown(0.5);
-
-                // Items
-                let yPosition = doc.y;
+                doc.moveDown(1);
+                
+                // Items Table with better formatting
+                const itemsStartY = doc.y;
+                const itemRowHeight = 25;
+                const col1X = margin + 10; // Item name
+                const col2X = pageWidth - margin - 150; // Quantity
+                const col3X = pageWidth - margin - 50; // Price
+                
+                // Table header
+                doc.font(boldFont).fontSize(12).fillColor('#666666');
+                doc.text('สินค้า', col1X, itemsStartY);
+                doc.text('จำนวน', col2X, itemsStartY, { width: 60, align: 'center' });
+                doc.text('ราคา', col3X, itemsStartY, { align: 'right' });
+                
+                // Draw line under header
+                doc.moveTo(margin, itemsStartY + 18)
+                   .lineTo(pageWidth - margin, itemsStartY + 18)
+                   .lineWidth(0.5)
+                   .strokeColor('#cccccc')
+                   .stroke();
+                
+                doc.y = itemsStartY + itemRowHeight;
+                
+                // Items List
+                doc.font(regularFont).fontSize(13).fillColor('black');
+                
                 orderItems.forEach((item, index) => {
-                    if (yPosition > 700) { // New page if needed
+                    if (doc.y > pageHeight - 200) { // New page if needed
                         doc.addPage();
-                        yPosition = 50;
+                        doc.y = 50;
                     }
                     
-                    // Convert price and subtotal to numbers (they come as strings from DB)
+                    // Convert price to number
                     const price = parseFloat(item.price) || 0;
-                    const subtotal = parseFloat(item.subtotal) || 0;
                     const quantity = parseInt(item.quantity, 10) || 0;
                     const fruitName = String(item.fruit_name || `Item ${index + 1}`);
                     
-                    doc.font(regularFont);
-                    doc.text(fruitName, 50, yPosition);
-                    doc.text(String(quantity), 250, yPosition);
-                    const priceText = `฿${price.toFixed(2)}`;
-                    const subtotalText = `฿${subtotal.toFixed(2)}`;
-                    doc.text(priceText, 320, yPosition);
-                    doc.text(subtotalText, 400, yPosition, { align: 'right' });
-                    yPosition += 20;
+                    // Item name on left
+                    doc.text(fruitName, col1X, doc.y);
+                    
+                    // Quantity in middle (centered)
+                    doc.text(String(quantity), col2X, doc.y, { width: 60, align: 'center' });
+                    
+                    // Price on right
+                    doc.text(`${price.toFixed(2)} บาท`, col3X, doc.y, { align: 'right' });
+                    
+                    doc.y += itemRowHeight;
                 });
-
-                doc.y = yPosition + 10;
                 
-                // Draw line before totals
-                doc.moveTo(50, doc.y)
-                   .lineTo(550, doc.y)
+                // Draw line before total
+                const totalLineY = doc.y + 10;
+                doc.moveTo(margin, totalLineY)
+                   .lineTo(pageWidth - margin, totalLineY)
+                   .lineWidth(1.5)
+                   .strokeColor('#333333')
                    .stroke();
                 
-                doc.moveDown();
-
-                // Totals (convert to numbers as they come as strings from DB)
-                const invoiceSubtotal = parseFloat(invoice.subtotal) || 0;
-                const invoiceTotal = parseFloat(invoice.total_amount) || 0;
+                doc.y = totalLineY + 20;
                 
-                doc.font(regularFont).fontSize(12);
-                const subtotalLabel = `Subtotal: ฿${invoiceSubtotal.toFixed(2)}`;
-                doc.text(subtotalLabel, { align: 'right' });
-                doc.moveDown(0.5);
-                doc.font(boldFont).fontSize(14);
-                const totalLabel = `Total: ฿${invoiceTotal.toFixed(2)}`;
-                doc.text(totalLabel, { align: 'right' });
-                doc.font(regularFont).fontSize(12);
-                doc.moveDown();
+                // Total Amount Section with highlight
+                const invoiceTotal = parseFloat(invoice.total_amount) || 0;
+                const totalBoxY = doc.y;
+                const totalBoxHeight = 50;
+                
+                // Background box for total
+                doc.roundedRect(margin, totalBoxY, contentWidth, totalBoxHeight, 5)
+                   .fillColor('#fff3cd')
+                   .fill()
+                   .fillColor('black'); // Reset fill color
+                
+                // Total text - Large bold Thai text
+                doc.font(boldFont).fontSize(20).fillColor('#333333');
+                const totalText = `ยอดชำระสุทธิ: ${invoiceTotal.toFixed(2)} บาท`;
+                doc.text(totalText, margin + 15, totalBoxY + 15, { align: 'left' });
+                
+                doc.y = totalBoxY + totalBoxHeight + 25;
+                
+                // Footer - Thank you message with better styling
+                doc.font(regularFont).fontSize(16).fillColor('#666666');
+                const footerY = pageHeight - 120;
+                // Shift text 1 cm (approx 28.35 pt) to left from center
+                const footerX = (pageWidth / 2) - 235;
+                doc.text('ขอบคุณที่ใช้บริการ', footerX, footerY, { align: 'center' });
 
-                // Payment Information
-                doc.moveDown();
-                doc.font(regularFont).fontSize(14).text('Payment Information:', { underline: true });
-                doc.fontSize(12);
-                doc.text(`Payment Method: ${String(invoice.payment_method || 'Thai QR PromptPay')}`);
-                doc.text(`Payment Status: ${String(invoice.payment_status || 'paid')}`);
-                if (invoice.payment_date) {
-                    try {
-                        const paymentDate = invoice.payment_date instanceof Date 
-                            ? invoice.payment_date 
-                            : new Date(invoice.payment_date);
-                        const paymentDateStr = paymentDate.toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                        });
-                        doc.text(`Payment Date: ${paymentDateStr}`);
-                    } catch (e) {
-                        doc.text(`Payment Date: ${invoice.payment_date}`);
-                    }
-                }
-
-                // Notes
-                if (invoice.notes) {
-                    doc.moveDown();
-                    doc.font(regularFont).fontSize(14).text('Notes:', { underline: true });
-                    doc.fontSize(12);
-                    doc.text(String(invoice.notes));
-                }
-
-                // Footer
-                doc.font(regularFont).fontSize(10)
-                   .fillColor('gray')
-                   .text('Thank you for your business!', 50, doc.page.height - 50, { align: 'center' });
+                // Additional footer text
+                doc.font(regularFont).fontSize(10).fillColor('#999999');
+                doc.text('หวังว่าจะได้รับความพึงพอใจจากท่าน', footerX, footerY + 20, { align: 'center' });
 
                 doc.end();
             } catch (error) {

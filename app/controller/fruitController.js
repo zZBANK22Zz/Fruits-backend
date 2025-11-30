@@ -62,7 +62,7 @@ class FruitController {
     // Create new fruit (admin only)
     static async createFruit(req, res) {
         try {
-            const { name, description, price, stock, image_url, category_id } = req.body;
+            const { name, description, price, stock, image, category_id } = req.body;
 
             // Validation
             if (!name || !price) {
@@ -106,7 +106,7 @@ class FruitController {
                 description: description || null,
                 price: parseFloat(price),
                 stock: stock || 0,
-                image_url: image_url || null,
+                image: image || null,
                 category_id: category_id || null
             };
 
@@ -134,7 +134,7 @@ class FruitController {
     static async updateFruit(req, res) {
         try {
             const { id } = req.params;
-            const { name, description, price, stock, image_url, category_id } = req.body;
+            const { name, description, price, stock, image, category_id } = req.body;
 
             // Check if fruit exists
             const existingFruit = await FruitModel.getFruitById(id);
@@ -146,7 +146,7 @@ class FruitController {
             }
 
             // Validation - at least one field should be provided
-            if (!name && !description && !price && stock === undefined && !image_url && category_id === undefined) {
+            if (!name && !description && !price && stock === undefined && !image && category_id === undefined) {
                 return res.status(400).json({
                     success: false,
                     message: 'At least one field must be provided for update'
@@ -189,7 +189,7 @@ class FruitController {
                 description: description !== undefined ? description : existingFruit.description,
                 price: price !== undefined ? parseFloat(price) : existingFruit.price,
                 stock: stock !== undefined ? stock : existingFruit.stock,
-                image_url: image_url !== undefined ? image_url : existingFruit.image_url,
+                image: image !== undefined ? image : existingFruit.image,
                 category_id: category_id !== undefined ? category_id : existingFruit.category_id
             };
 

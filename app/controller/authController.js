@@ -103,6 +103,9 @@ class AuthController {
                 });
             }
 
+            // Get full user data including image
+            const fullUser = await UserModel.findById(user.id);
+
             // Generate token
             const token = AuthService.generateToken(user);
 
@@ -111,12 +114,13 @@ class AuthController {
                 message: 'Login successful',
                 data: {
                     user: {
-                        id: user.id,
-                        username: user.username,
-                        email: user.email,
-                        first_name: user.first_name,
-                        last_name: user.last_name,
-                        role: user.role
+                        id: fullUser.id,
+                        username: fullUser.username,
+                        email: fullUser.email,
+                        first_name: fullUser.first_name,
+                        last_name: fullUser.last_name,
+                        role: fullUser.role,
+                        image: fullUser.image // Include image field
                     },
                     token
                 }

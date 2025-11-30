@@ -17,9 +17,15 @@ class UserModel {
 
     // Find user by ID
     static async findById(id) {
-        const query = 'SELECT id, username, email, first_name, last_name, role, created_at FROM users WHERE id = $1';
+        const query = 'SELECT id, username, email, first_name, last_name, role, created_at, image FROM users WHERE id = $1';
         const result = await pool.query(query, [id]);
-        return result.rows[0];
+        if (result.rows.length === 0) return null;
+        const user = result.rows[0];
+        // Convert binary image data to base64
+        return {
+            ...user,
+            image: user.image ? user.image.toString('base64') : null
+        };
     }
 
     // Create new user
@@ -48,15 +54,67 @@ class UserModel {
 
     //Edit user
     static async editUser(userId, userData) {
-        const { username, email, password, first_name, last_name } = userData;
+        // Build dynamic query based on which fields are provided
+        const updates = [];
+        const params = [];
+        let paramIndex = 1;
+        
+        // Username is always required (for validation)
+        if (userData.username !== undefined) {
+            updates.push(`username = $${paramIndex++}`);
+            params.push(userData.username);
+        }
+        
+        // Email is always required (for validation)
+        if (userData.email !== undefined) {
+            updates.push(`email = $${paramIndex++}`);
+            params.push(userData.email);
+        }
+        
+        // Only update password if provided
+        if (userData.password !== undefined && userData.password !== null) {
+            updates.push(`password = $${paramIndex++}`);
+            params.push(userData.password);
+        }
+        
+        // Only update first_name if provided
+        if (userData.first_name !== undefined) {
+            updates.push(`first_name = $${paramIndex++}`);
+            params.push(userData.first_name);
+        }
+        
+        // Only update last_name if provided
+        if (userData.last_name !== undefined) {
+            updates.push(`last_name = $${paramIndex++}`);
+            params.push(userData.last_name);
+        }
+        
+        // Only update image if provided
+        if (userData.image !== undefined) {
+            updates.push(`image = $${paramIndex++}`);
+            params.push(userData.image); // image should be Buffer or null
+        }
+        
+        // Always update timestamp
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        
+        // Add userId as last parameter
+        params.push(userId);
+        
         const query = `
             UPDATE users 
-            SET username = $1, email = $2, password = $3, first_name = $4, last_name = $5, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $6
-            RETURNING id, username, email, first_name, last_name, role, updated_at
+            SET ${updates.join(', ')}
+            WHERE id = $${paramIndex}
+            RETURNING id, username, email, first_name, last_name, role, updated_at, image
         `;
-        const result = await pool.query(query, [username, email, password, first_name, last_name, userId]);
-        return result.rows[0];
+        
+        const result = await pool.query(query, params);
+        const user = result.rows[0];
+        // Convert binary image data to base64
+        return {
+            ...user,
+            image: user.image ? user.image.toString('base64') : null
+        };
     }
 
     //Delete user

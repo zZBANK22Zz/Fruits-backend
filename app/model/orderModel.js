@@ -118,13 +118,17 @@ class OrderModel {
             SELECT 
                 oi.*,
                 f.name as fruit_name,
-                f.image_url as fruit_image
+                f.image as fruit_image
             FROM order_items oi
             LEFT JOIN fruits f ON oi.fruit_id = f.id
             WHERE oi.order_id = $1
         `;
         const itemsResult = await pool.query(itemsQuery, [orderId]);
-        order.items = itemsResult.rows;
+        // Convert binary image data to base64
+        order.items = itemsResult.rows.map(item => ({
+            ...item,
+            fruit_image: item.fruit_image ? item.fruit_image.toString('base64') : null
+        }));
 
         return order;
     }
