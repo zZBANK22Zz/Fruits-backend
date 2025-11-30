@@ -232,6 +232,35 @@ class OrderModel {
             client.release();
         }
     }
+
+    // Get user's most frequently bought products
+    static async getMostBoughtProducts(userId, limit = 4) {
+        const query = `
+            SELECT 
+                oi.fruit_id,
+                SUM(oi.quantity) as total_quantity,
+                COUNT(DISTINCT oi.order_id) as order_count,
+                f.id,
+                f.name,
+                f.description,
+                f.price,
+                f.stock,
+                ENCODE(f.image, 'base64') as image,
+                f.category_id,
+                c.name as category_name
+            FROM order_items oi
+            INNER JOIN orders o ON oi.order_id = o.id
+            INNER JOIN fruits f ON oi.fruit_id = f.id
+            LEFT JOIN categories c ON f.category_id = c.id
+            WHERE o.user_id = $1
+            AND o.status IN ('paid', 'completed')
+            GROUP BY oi.fruit_id, f.id, f.name, f.description, f.price, f.stock, f.image, f.category_id, c.name
+            ORDER BY total_quantity DESC, order_count DESC
+            LIMIT $2
+        `;
+        const result = await pool.query(query, [userId, limit]);
+        return result.rows;
+    }
 }
 
 module.exports = OrderModel;

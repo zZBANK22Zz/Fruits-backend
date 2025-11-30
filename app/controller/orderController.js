@@ -122,6 +122,28 @@ class OrderController {
         }
     }
 
+    // Get user's most frequently bought products
+    static async getMostBoughtProducts(req, res) {
+        try {
+            const userId = req.user.id;
+            const limit = parseInt(req.query.limit) || 4;
+            const products = await OrderModel.getMostBoughtProducts(userId, limit);
+
+            res.status(200).json({
+                success: true,
+                message: 'Most bought products fetched successfully',
+                data: { products }
+            });
+        } catch (error) {
+            console.error('Get most bought products error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
     // Get order by ID
     static async getOrderById(req, res) {
         try {
