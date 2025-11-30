@@ -35,28 +35,78 @@ app.use('/api/invoices', invoiceRoutes);
 app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: 'Fruit WebApp API is running'
+        message: 'Fruit WebApp API is running',
+        environment: process.env.VERCEL ? 'Vercel' : 'Local'
     });
 });
 
-// Initialize database and start server
-async function startServer() {
+// Cron job endpoint for Vercel Cron Jobs
+// This endpoint can be called by Vercel Cron to clean up expired orders
+app.get('/api/cron/cleanup-orders', async (req, res) => {
     try {
-        // Test database connection
-        await pool.connect();
-        console.log('Connected to the database');
+        // Optional: Add authentication/authorization here
+        // For example, check for a secret token in headers
+        const cronSecret = req.headers['x-cron-secret'];
+        if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
 
-        // Start order cleanup job (rejects orders not paid within 5 minutes)
-        OrderCleanupService.startCleanupJob();
-
-        // Start server
-        app.listen(port, () => {
-            console.log(`Server is running on port ${port}`);
+        const result = await OrderCleanupService.cleanupExpiredOrders();
+        res.json({
+            success: true,
+            message: 'Cleanup job executed',
+            ...result
         });
     } catch (error) {
-        console.error('Error starting server:', error);
-        process.exit(1);
+        console.error('Error in cron cleanup endpoint:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error executing cleanup job',
+            error: error.message
+        });
+    }
+});
+
+// Initialize database connection (non-blocking for Vercel)
+async function initializeDatabase() {
+    try {
+        await pool.connect();
+        console.log('Connected to the database');
+    } catch (error) {
+        console.error('Error connecting to database:', error);
+        // Don't exit on Vercel, let it retry on next request
+        if (!process.env.VERCEL) {
+            process.exit(1);
+        }
     }
 }
 
-startServer();
+// Start server only if not on Vercel (Vercel uses serverless functions)
+if (!process.env.VERCEL) {
+    async function startServer() {
+        try {
+            // Test database connection
+            await initializeDatabase();
+
+            // Start order cleanup job (only for local development)
+            // On Vercel, use the cron endpoint with Vercel Cron Jobs
+            OrderCleanupService.startCleanupJob();
+
+            // Start server
+            app.listen(port, () => {
+                console.log(`Server is running on port ${port}`);
+            });
+        } catch (error) {
+            console.error('Error starting server:', error);
+            process.exit(1);
+        }
+    }
+
+    startServer();
+} else {
+    // On Vercel, initialize database connection asynchronously
+    initializeDatabase();
+}
+
+// Export the app for Vercel serverless functions
+module.exports = app;
