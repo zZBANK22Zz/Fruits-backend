@@ -67,17 +67,21 @@ app.get('/api/cron/cleanup-orders', async (req, res) => {
     }
 });
 
-// Initialize database connection (non-blocking for Vercel)
+// Initialize database connection (only for local development)
+// In serverless (Vercel), connections are created on-demand per request
 async function initializeDatabase() {
     try {
-        await pool.connect();
+        // Test connection with a simple query
+        const result = await pool.query('SELECT NOW()');
         console.log('Connected to the database');
+        return true;
     } catch (error) {
         console.error('Error connecting to database:', error);
         // Don't exit on Vercel, let it retry on next request
         if (!process.env.VERCEL) {
             process.exit(1);
         }
+        return false;
     }
 }
 
@@ -104,8 +108,9 @@ if (!process.env.VERCEL) {
 
     startServer();
 } else {
-    // On Vercel, initialize database connection asynchronously
-    initializeDatabase();
+    // On Vercel, don't pre-connect
+    // Connections will be created on-demand when queries are executed
+    console.log('Running in serverless mode - connections will be created on-demand');
 }
 
 // Export the app for Vercel serverless functions
