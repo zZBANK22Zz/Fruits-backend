@@ -1,5 +1,7 @@
 const OrderModel = require('../model/orderModel');
 const FruitModel = require('../model/fruitModel');
+const InvoiceController = require('./invoiceController');
+const QRPromptPayService = require('../services/qrPromptPayService');
 const pool = require('../config/database');
 
 class OrderController {
@@ -112,6 +114,28 @@ class OrderController {
             });
         } catch (error) {
             console.error('Get my orders error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
+    // Get user's most frequently bought products
+    static async getMostBoughtProducts(req, res) {
+        try {
+            const userId = req.user.id;
+            const limit = parseInt(req.query.limit) || 4;
+            const products = await OrderModel.getMostBoughtProducts(userId, limit);
+
+            res.status(200).json({
+                success: true,
+                message: 'Most bought products fetched successfully',
+                data: { products }
+            });
+        } catch (error) {
+            console.error('Get most bought products error:', error);
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',
@@ -249,6 +273,21 @@ class OrderController {
             const updatedOrder = await OrderModel.updateOrderStatus(id, status);
             const completeOrder = await OrderModel.getOrderById(id);
 
+            // Auto-generate invoice when status changes to "paid"
+            if (status === 'paid' && oldStatus !== 'paid') {
+                try {
+                    await InvoiceController.generateInvoice(id, {
+                        user_id: completeOrder.user_id,
+                        total_amount: completeOrder.total_amount,
+                        payment_method: completeOrder.payment_method,
+                        notes: completeOrder.notes
+                    });
+                } catch (invoiceError) {
+                    // Log error but don't fail the order status update
+                    console.error('Failed to generate invoice:', invoiceError.message);
+                }
+            }
+
             res.status(200).json({
                 success: true,
                 message: 'Order status updated successfully',
@@ -263,6 +302,183 @@ class OrderController {
             });
         } finally {
             client.release();
+        }
+    }
+
+    // Confirm payment (user can confirm their own order payment)
+    static async confirmPayment(req, res) {
+        const client = await pool.connect();
+        try {
+            const { id } = req.params;
+            const userId = req.user.id;
+
+            // Get current order
+            const currentOrder = await OrderModel.getOrderById(id);
+            if (!currentOrder) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Verify order belongs to user
+            if (currentOrder.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'You do not have permission to confirm this order'
+                });
+            }
+
+            // Only allow confirming if order is in pending status
+            if (currentOrder.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `Cannot confirm payment. Order status is already: ${currentOrder.status}`
+                });
+            }
+
+            const oldStatus = currentOrder.status;
+
+            // Update order status to 'paid'
+            const updatedOrder = await OrderModel.updateOrderStatus(id, 'paid');
+            const completeOrder = await OrderModel.getOrderById(id);
+
+            // Auto-generate invoice when status changes to "paid"
+            if (oldStatus !== 'paid') {
+                try {
+                    await InvoiceController.generateInvoice(id, {
+                        user_id: completeOrder.user_id,
+                        total_amount: completeOrder.total_amount,
+                        payment_method: completeOrder.payment_method,
+                        notes: completeOrder.notes
+                    });
+                } catch (invoiceError) {
+                    // Log error but don't fail the order status update
+                    console.error('Failed to generate invoice:', invoiceError.message);
+                }
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Payment confirmed successfully. Invoice generated.',
+                data: { order: completeOrder }
+            });
+        } catch (error) {
+            console.error('Confirm payment error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Get QR Code for order payment (PromptPay)
+    static async getOrderQRCode(req, res) {
+        try {
+            const { id } = req.params;
+            const userId = req.user.id;
+            const userRole = req.user.role;
+
+            // Get order
+            const order = await OrderModel.getOrderById(id);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Authorization: Users can only get QR code for their own orders, admins can get for any order
+            if (userRole !== 'admin' && order.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied. You can only get QR code for your own orders'
+                });
+            }
+
+            // Only generate QR code for pending orders
+            if (order.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `QR code can only be generated for pending orders. Current status: ${order.status}`
+                });
+            }
+
+            // Generate QR code
+            const qrCodeData = await QRPromptPayService.generateQRCodeForOrder(order);
+
+            res.status(200).json({
+                success: true,
+                message: 'QR code generated successfully',
+                data: {
+                    order_id: order.id,
+                    order_number: order.order_number,
+                    amount: order.total_amount,
+                    qr_code: qrCodeData.qrCodeDataURL, // Base64 data URL for frontend display
+                    payload: qrCodeData.payload, // PromptPay payload string
+                    phone_number: qrCodeData.phoneNumber
+                }
+            });
+        } catch (error) {
+            console.error('Get order QR code error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
+    // Get QR Code as image (for direct image display/download)
+    static async getOrderQRCodeImage(req, res) {
+        try {
+            const { id } = req.params;
+            const userId = req.user.id;
+            const userRole = req.user.role;
+
+            // Get order
+            const order = await OrderModel.getOrderById(id);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Authorization: Users can only get QR code for their own orders, admins can get for any order
+            if (userRole !== 'admin' && order.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied. You can only get QR code for your own orders'
+                });
+            }
+
+            // Only generate QR code for pending orders
+            if (order.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `QR code can only be generated for pending orders. Current status: ${order.status}`
+                });
+            }
+
+            // Generate QR code
+            const qrCodeData = await QRPromptPayService.generateQRCodeForOrder(order);
+
+            // Set response headers for image
+            res.setHeader('Content-Type', 'image/png');
+            res.setHeader('Content-Disposition', `inline; filename=qr-promptpay-${order.order_number}.png`);
+
+            res.send(qrCodeData.qrCodeBuffer);
+        } catch (error) {
+            console.error('Get order QR code image error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
         }
     }
 }

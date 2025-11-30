@@ -119,3 +119,9 @@ out
 
 #SQL files
 *.sql
+
+#readme files
+*.md
+
+#text files
+*.txt

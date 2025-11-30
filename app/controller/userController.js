@@ -74,7 +74,7 @@ class UserController {
     static async editUser(req, res) {
         try {
             const { userId } = req.params;
-            const { username, email, password } = req.body;
+            const { username, email, password, first_name, last_name, image } = req.body;
             const currentUserId = req.user.id;
             const currentUserRole = req.user.role;
 
@@ -121,18 +121,69 @@ class UserController {
                 });
             }
 
-            // Hash password if provided
-            let hashedPassword = existingUser.password; // Keep existing password if not provided
-            if (password) {
+            // Hash password if provided, otherwise don't include it in update
+            let hashedPassword = undefined;
+            if (password && password.trim() !== '') {
                 hashedPassword = await AuthService.hashPassword(password);
             }
 
+            // Convert base64 image to Buffer if provided
+            let imageBuffer = undefined;
+            if (image !== undefined) {
+                if (image === null || image === '') {
+                    // User wants to remove image
+                    imageBuffer = null;
+                } else if (typeof image === 'string') {
+                    // Convert base64 string to Buffer
+                    try {
+                        imageBuffer = Buffer.from(image, 'base64');
+                    } catch (err) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Invalid image format. Please provide a valid base64 encoded image.'
+                        });
+                    }
+                }
+            }
+
+            // Prepare update data - only include fields that are provided
+            const updateData = {};
+            
+            // Username and email are required for validation, but only update if provided
+            if (username !== undefined) {
+                updateData.username = username;
+            } else {
+                updateData.username = existingUser.username; // Use existing for validation
+            }
+            
+            if (email !== undefined) {
+                updateData.email = email;
+            } else {
+                updateData.email = existingUser.email; // Use existing for validation
+            }
+            
+            // Only include password if provided
+            if (hashedPassword !== undefined) {
+                updateData.password = hashedPassword;
+            }
+            
+            // Only include first_name if provided
+            if (first_name !== undefined) {
+                updateData.first_name = first_name;
+            }
+            
+            // Only include last_name if provided
+            if (last_name !== undefined) {
+                updateData.last_name = last_name;
+            }
+            
+            // Only include image if provided
+            if (imageBuffer !== undefined) {
+                updateData.image = imageBuffer;
+            }
+
             // Update user
-            const updatedUser = await UserModel.editUser(userId, {
-                username,
-                email,
-                password: hashedPassword
-            });
+            const updatedUser = await UserModel.editUser(userId, updateData);
 
             res.status(200).json({
                 success: true,

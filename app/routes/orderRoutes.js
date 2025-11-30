@@ -10,11 +10,23 @@ router.post('/', authMiddleware, OrderController.createOrder);
 // Get user's orders (authenticated users) - must be before /:id
 router.get('/my-orders', authMiddleware, OrderController.getMyOrders);
 
+// Get user's most frequently bought products - must be before /:id
+router.get('/most-bought', authMiddleware, OrderController.getMostBoughtProducts);
+
 // Get all orders (admin only) - must be before /:id
 router.get('/all', requireAdmin, OrderController.getAllOrders);
 
+// Get QR code for order payment (PromptPay) - must be before /:id
+router.get('/:id/qr-code', authMiddleware, OrderController.getOrderQRCode);
+
+// Get QR code as image - must be before /:id
+router.get('/:id/qr-code/image', authMiddleware, OrderController.getOrderQRCodeImage);
+
 // Get order by ID (owner or admin)
 router.get('/:id', authMiddleware, OrderController.getOrderById);
+
+// Confirm payment (user can confirm their own order)
+router.post('/:id/confirm-payment', authMiddleware, OrderController.confirmPayment);
 
 // Update order status (admin only)
 router.put('/:id/status', requireAdmin, OrderController.updateOrderStatus);

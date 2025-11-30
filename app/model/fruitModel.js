@@ -10,7 +10,7 @@ class FruitModel {
                 f.description,
                 f.price,
                 f.stock,
-                f.image_url,
+                f.image,
                 f.category_id,
                 c.name as category_name,
                 f.created_at,
@@ -20,7 +20,11 @@ class FruitModel {
             ORDER BY f.id
         `;
         const result = await pool.query(query);
-        return result.rows;
+        // Convert binary image data to base64
+        return result.rows.map(fruit => ({
+            ...fruit,
+            image: fruit.image ? fruit.image.toString('base64') : null
+        }));
     }
 
     //Get fruit by id with category name
@@ -32,7 +36,7 @@ class FruitModel {
                 f.description,
                 f.price,
                 f.stock,
-                f.image_url,
+                f.image,
                 f.category_id,
                 c.name as category_name,
                 f.created_at,
@@ -42,7 +46,13 @@ class FruitModel {
             WHERE f.id = $1
         `;
         const result = await pool.query(query, [id]);
-        return result.rows[0];
+        if (result.rows.length === 0) return null;
+        const fruit = result.rows[0];
+        // Convert binary image data to base64
+        return {
+            ...fruit,
+            image: fruit.image ? fruit.image.toString('base64') : null
+        };
     }
 
     //Get fruit by name
@@ -52,29 +62,70 @@ class FruitModel {
         return result.rows[0];
     }
 
+    //Get fruits by category name
+    static async getFruitsByCategoryName(categoryName) {
+        const query = `
+            SELECT 
+                f.id,
+                f.name,
+                f.description,
+                f.price,
+                f.stock,
+                f.image,
+                f.category_id,
+                c.name as category_name,
+                f.created_at,
+                f.updated_at
+            FROM fruits f
+            LEFT JOIN categories c ON f.category_id = c.id
+            WHERE c.name = $1
+            ORDER BY f.id
+        `;
+        const result = await pool.query(query, [categoryName]);
+        // Convert binary image data to base64
+        return result.rows.map(fruit => ({
+            ...fruit,
+            image: fruit.image ? fruit.image.toString('base64') : null
+        }));
+    }
+
     //Create new fruit
     static async createFruit(fruitData) {
-        const { name, description, price, stock, image_url, category_id } = fruitData;
+        const { name, description, price, stock, image, category_id } = fruitData;
+        // Convert base64 image string to Buffer if provided
+        const imageBuffer = image ? Buffer.from(image, 'base64') : null;
         const query = `
-            INSERT INTO fruits (name, description, price, stock, image_url, category_id) 
+            INSERT INTO fruits (name, description, price, stock, image, category_id) 
             VALUES ($1, $2, $3, $4, $5, $6) 
             RETURNING *
         `;
-        const result = await pool.query(query, [name, description, price, stock, image_url, category_id]);
-        return result.rows[0];
+        const result = await pool.query(query, [name, description, price, stock, imageBuffer, category_id]);
+        const fruit = result.rows[0];
+        // Convert binary image data to base64
+        return {
+            ...fruit,
+            image: fruit.image ? fruit.image.toString('base64') : null
+        };
     }
 
     //Update fruit
     static async updateFruit(id, fruitData) {
-        const { name, description, price, stock, image_url, category_id } = fruitData;
+        const { name, description, price, stock, image, category_id } = fruitData;
+        // Convert base64 image string to Buffer if provided
+        const imageBuffer = image ? Buffer.from(image, 'base64') : null;
         const query = `
             UPDATE fruits 
-            SET name = $1, description = $2, price = $3, stock = $4, image_url = $5, category_id = $6, updated_at = CURRENT_TIMESTAMP
+            SET name = $1, description = $2, price = $3, stock = $4, image = $5, category_id = $6, updated_at = CURRENT_TIMESTAMP
             WHERE id = $7 
             RETURNING *
         `;
-        const result = await pool.query(query, [name, description, price, stock, image_url, category_id, id]);
-        return result.rows[0];
+        const result = await pool.query(query, [name, description, price, stock, imageBuffer, category_id, id]);
+        const fruit = result.rows[0];
+        // Convert binary image data to base64
+        return {
+            ...fruit,
+            image: fruit.image ? fruit.image.toString('base64') : null
+        };
     }
 
 

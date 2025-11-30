@@ -118,13 +118,17 @@ class OrderModel {
             SELECT 
                 oi.*,
                 f.name as fruit_name,
-                f.image_url as fruit_image
+                f.image as fruit_image
             FROM order_items oi
             LEFT JOIN fruits f ON oi.fruit_id = f.id
             WHERE oi.order_id = $1
         `;
         const itemsResult = await pool.query(itemsQuery, [orderId]);
-        order.items = itemsResult.rows;
+        // Convert binary image data to base64
+        order.items = itemsResult.rows.map(item => ({
+            ...item,
+            fruit_image: item.fruit_image ? item.fruit_image.toString('base64') : null
+        }));
 
         return order;
     }
@@ -179,6 +183,82 @@ class OrderModel {
     static async getOrderItems(orderId) {
         const query = 'SELECT fruit_id, quantity FROM order_items WHERE order_id = $1';
         const result = await pool.query(query, [orderId]);
+        return result.rows;
+    }
+
+    // Get expired pending orders (older than specified minutes)
+    static async getExpiredPendingOrders(minutes = 5) {
+        // Ensure minutes is a valid number to prevent SQL injection
+        const minutesValue = parseInt(minutes, 10) || 5;
+        if (minutesValue < 0 || minutesValue > 1440) {
+            throw new Error('Invalid minutes value. Must be between 0 and 1440 (24 hours)');
+        }
+        
+        const query = `
+            SELECT id, order_number, created_at
+            FROM orders
+            WHERE status = 'pending'
+            AND created_at < NOW() - INTERVAL '${minutesValue} minutes'
+        `;
+        const result = await pool.query(query);
+        return result.rows;
+    }
+
+    // Batch update orders to cancelled status (for expired unpaid orders)
+    static async batchUpdateOrdersToCancelled(orderIds) {
+        if (!orderIds || orderIds.length === 0) {
+            return [];
+        }
+
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            const placeholders = orderIds.map((_, index) => `$${index + 1}`).join(', ');
+            const query = `
+                UPDATE orders 
+                SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+                WHERE id IN (${placeholders})
+                RETURNING id, order_number, status
+            `;
+            
+            const result = await client.query(query, orderIds);
+            await client.query('COMMIT');
+            return result.rows;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    // Get user's most frequently bought products
+    static async getMostBoughtProducts(userId, limit = 4) {
+        const query = `
+            SELECT 
+                oi.fruit_id,
+                SUM(oi.quantity) as total_quantity,
+                COUNT(DISTINCT oi.order_id) as order_count,
+                f.id,
+                f.name,
+                f.description,
+                f.price,
+                f.stock,
+                ENCODE(f.image, 'base64') as image,
+                f.category_id,
+                c.name as category_name
+            FROM order_items oi
+            INNER JOIN orders o ON oi.order_id = o.id
+            INNER JOIN fruits f ON oi.fruit_id = f.id
+            LEFT JOIN categories c ON f.category_id = c.id
+            WHERE o.user_id = $1
+            AND o.status IN ('paid', 'completed')
+            GROUP BY oi.fruit_id, f.id, f.name, f.description, f.price, f.stock, f.image, f.category_id, c.name
+            ORDER BY total_quantity DESC, order_count DESC
+            LIMIT $2
+        `;
+        const result = await pool.query(query, [userId, limit]);
         return result.rows;
     }
 }
