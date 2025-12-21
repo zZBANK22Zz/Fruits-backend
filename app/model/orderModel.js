@@ -61,6 +61,8 @@ class OrderModel {
     }
 
     // Create order items
+    // Note: The 'quantity' column in order_items table stores weight in kilograms (DECIMAL)
+    // This allows decimal values like 1.5, 2.5 kg, etc.
     static async createOrderItems(orderId, items) {
         const client = await pool.connect();
         try {
@@ -74,10 +76,11 @@ class OrderModel {
 
             const createdItems = [];
             for (const item of items) {
+                // item.quantity contains weight in kilograms (can be decimal)
                 const result = await client.query(insertItemQuery, [
                     orderId,
                     item.fruit_id,
-                    item.quantity,
+                    item.quantity, // This is weight in kg, stored in quantity column
                     item.price,
                     item.subtotal
                 ]);
@@ -180,10 +183,11 @@ class OrderModel {
     }
 
     // Get order items for stock management
+    // Returns items with fruit_id and quantity (which contains weight in kilograms)
     static async getOrderItems(orderId) {
         const query = 'SELECT fruit_id, quantity FROM order_items WHERE order_id = $1';
         const result = await pool.query(query, [orderId]);
-        return result.rows;
+        return result.rows; // quantity field contains weight in kg (decimal)
     }
 
     // Get expired pending orders (older than specified minutes)

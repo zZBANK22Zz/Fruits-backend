@@ -67,51 +67,55 @@ app.get('/api/cron/cleanup-orders', async (req, res) => {
     }
 });
 
-// Initialize database connection (only for local development)
-// In serverless (Vercel), connections are created on-demand per request
-async function initializeDatabase() {
-    try {
-        // Test connection with a simple query
-        const result = await pool.query('SELECT NOW()');
-        console.log('Connected to the database');
-        return true;
-    } catch (error) {
-        console.error('Error connecting to database:', error);
-        // Don't exit on Vercel, let it retry on next request
-        if (!process.env.VERCEL) {
-            process.exit(1);
-        }
-        return false;
-    }
-}
+app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+});
 
-// Start server only if not on Vercel (Vercel uses serverless functions)
-if (!process.env.VERCEL) {
-    async function startServer() {
-        try {
-            // Test database connection
-            await initializeDatabase();
+// // Initialize database connection (only for local development)
+// // In serverless (Vercel), connections are created on-demand per request
+// async function initializeDatabase() {
+//     try {
+//         // Test connection with a simple query
+//         const result = await pool.query('SELECT NOW()');
+//         console.log('Connected to the database');
+//         return true;
+//     } catch (error) {
+//         console.error('Error connecting to database:', error);
+//         // Don't exit on Vercel, let it retry on next request
+//         if (!process.env.VERCEL) {
+//             process.exit(1);
+//         }
+//         return false;
+//     }
+// }
 
-            // Start order cleanup job (only for local development)
-            // On Vercel, use the cron endpoint with Vercel Cron Jobs
-            OrderCleanupService.startCleanupJob();
+// // Start server only if not on Vercel (Vercel uses serverless functions)
+// if (!process.env.VERCEL) {
+//     async function startServer() {
+//         try {
+//             // Test database connection
+//             await initializeDatabase();
 
-            // Start server
-            app.listen(port, () => {
-                console.log(`Server is running on port ${port}`);
-            });
-        } catch (error) {
-            console.error('Error starting server:', error);
-            process.exit(1);
-        }
-    }
+//             // Start order cleanup job (only for local development)
+//             // On Vercel, use the cron endpoint with Vercel Cron Jobs
+//             OrderCleanupService.startCleanupJob();
 
-    startServer();
-} else {
-    // On Vercel, don't pre-connect
-    // Connections will be created on-demand when queries are executed
-    console.log('Running in serverless mode - connections will be created on-demand');
-}
+//             // Start server
+//             app.listen(port, () => {
+//                 console.log(`Server is running on port ${port}`);
+//             });
+//         } catch (error) {
+//             console.error('Error starting server:', error);
+//             process.exit(1);
+//         }
+//     }
+
+//     startServer();
+// } else {
+//     // On Vercel, don't pre-connect
+//     // Connections will be created on-demand when queries are executed
+//     console.log('Running in serverless mode - connections will be created on-demand');
+// }
 
 // Export the app for Vercel serverless functions
 module.exports = app;

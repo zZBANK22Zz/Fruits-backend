@@ -31,10 +31,15 @@ class OrderController {
             const orderItems = [];
 
             for (const item of items) {
-                if (!item.fruit_id || !item.quantity) {
+                // Accept both 'quantity' (for pieces) and 'weight' (for kg) fields
+                // Determine which one to use based on fruit's unit
+                const quantity = item.quantity !== undefined ? item.quantity : null;
+                const weight = item.weight !== undefined ? item.weight : null;
+                
+                if (!item.fruit_id || (quantity === null && weight === null)) {
                     return res.status(400).json({
                         success: false,
-                        message: 'Each item must have fruit_id and quantity'
+                        message: 'Each item must have fruit_id and either quantity (for pieces) or weight (for kg)'
                     });
                 }
 
@@ -47,20 +52,58 @@ class OrderController {
                     });
                 }
 
-                // Check stock availability
-                if (fruit.stock < item.quantity) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Insufficient stock for ${fruit.name}. Available: ${fruit.stock}, Requested: ${item.quantity}`
-                    });
+                // Determine the amount based on fruit's unit
+                let amount;
+                let unitLabel;
+                
+                if (fruit.unit === 'piece') {
+                    // Fruit is sold by piece
+                    amount = quantity !== null ? parseInt(quantity) : parseInt(weight || 0);
+                    unitLabel = 'pieces';
+                    
+                    // Validate quantity is positive integer
+                    if (amount <= 0 || !Number.isInteger(amount)) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Quantity must be a positive integer for fruits sold by piece'
+                        });
+                    }
+                    
+                    // Check stock availability (stock is in pieces)
+                    if (fruit.stock < amount) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Insufficient stock for ${fruit.name}. Available: ${fruit.stock} pieces, Requested: ${amount} pieces`
+                        });
+                    }
+                } else {
+                    // Fruit is sold by weight (kg) - default
+                    amount = weight !== null ? parseFloat(weight) : parseFloat(quantity || 0);
+                    unitLabel = 'kg';
+                    
+                    // Validate weight is positive
+                    if (amount <= 0) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Weight must be greater than 0'
+                        });
+                    }
+                    
+                    // Check stock availability (stock is in kilograms)
+                    if (fruit.stock < amount) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Insufficient stock for ${fruit.name}. Available: ${fruit.stock} kg, Requested: ${amount} kg`
+                        });
+                    }
                 }
 
-                const subtotal = fruit.price * item.quantity;
+                const subtotal = fruit.price * amount;
                 totalAmount += subtotal;
 
                 orderItems.push({
                     fruit_id: item.fruit_id,
-                    quantity: item.quantity,
+                    quantity: amount, // Store amount (weight or quantity) in quantity column
                     price: fruit.price,
                     subtotal: subtotal
                 });
@@ -230,13 +273,14 @@ class OrderController {
 
             const oldStatus = currentOrder.status;
 
-            // If changing to confirmed, reduce stock
+            // If changing to confirmed, reduce stock (by weight in kilograms)
             if (status === 'confirmed' && oldStatus !== 'confirmed') {
                 const orderItems = await OrderModel.getOrderItems(id);
                 
                 await client.query('BEGIN');
                 try {
                     for (const item of orderItems) {
+                        // item.quantity contains weight in kilograms (decimal)
                         const fruit = await FruitModel.reduceStock(item.fruit_id, item.quantity);
                         if (!fruit) {
                             await client.query('ROLLBACK');
@@ -253,13 +297,14 @@ class OrderController {
                 }
             }
 
-            // If changing from confirmed to cancelled, restore stock
+            // If changing from confirmed to cancelled, restore stock (by weight in kilograms)
             if (oldStatus === 'confirmed' && status === 'cancelled') {
                 const orderItems = await OrderModel.getOrderItems(id);
                 
                 await client.query('BEGIN');
                 try {
                     for (const item of orderItems) {
+                        // item.quantity contains weight in kilograms (decimal)
                         await FruitModel.restoreStock(item.fruit_id, item.quantity);
                     }
                     await client.query('COMMIT');

@@ -243,14 +243,15 @@ class PDFService {
                     
                     // Convert price to number
                     const price = parseFloat(item.price) || 0;
-                    const quantity = parseInt(item.quantity, 10) || 0;
+                    // quantity field contains weight in kilograms (can be decimal)
+                    const weight = parseFloat(item.quantity) || 0;
                     const fruitName = String(item.fruit_name || `Item ${index + 1}`);
                     
                     // Item name on left
                     doc.text(fruitName, col1X, doc.y);
                     
-                    // Quantity in middle (centered)
-                    doc.text(String(quantity), col2X, doc.y, { width: 60, align: 'center' });
+                    // Weight in kilograms in middle (centered)
+                    doc.text(weight.toFixed(2) + ' kg', col2X, doc.y, { width: 60, align: 'center' });
                     
                     // Price on right
                     doc.text(`${price.toFixed(2)} บาท`, col3X, doc.y, { align: 'right' });

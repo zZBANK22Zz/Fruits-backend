@@ -18,5 +18,8 @@ router.put('/:id', requireAdmin, FruitController.updateFruit);
 // Delete fruit (admin only)
 router.delete('/:id', requireAdmin, FruitController.deleteFruit);
 
+// Calculate the total price of the fruits when user add to cart
+router.post('/calculate-total-price', FruitController.calculateTotalPrice);
+
 module.exports = router;
 

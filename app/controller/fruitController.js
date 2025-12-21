@@ -1,5 +1,6 @@
 const FruitModel = require('../model/fruitModel');
 const CategoryModel = require('../model/categoryModel');
+const FruitCalculationService = require('../services/fruitCalculationService');
 
 class FruitController {
     // Get all fruits
@@ -100,12 +101,12 @@ class FruitController {
                 });
             }
 
-            // Create fruit
+            // Create fruit (unit comes from category, not fruit)
             const fruitData = {
                 name,
                 description: description || null,
                 price: parseFloat(price),
-                stock: stock || 0,
+                stock: stock !== undefined && stock !== null ? parseFloat(stock) : 0, // Stock in unit from category
                 image: image || null,
                 category_id: category_id || null
             };
@@ -183,12 +184,21 @@ class FruitController {
                 }
             }
 
+            // Validate stock if provided (must be >= 0, can be decimal for weight in kg or integer for pieces)
+            if (stock !== undefined && (isNaN(stock) || parseFloat(stock) < 0)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Stock must be a valid number >= 0'
+                });
+            }
+
             // Prepare update data (use existing values if not provided)
+            // Note: unit comes from category, not fruit
             const fruitData = {
                 name: name || existingFruit.name,
                 description: description !== undefined ? description : existingFruit.description,
                 price: price !== undefined ? parseFloat(price) : existingFruit.price,
-                stock: stock !== undefined ? stock : existingFruit.stock,
+                stock: stock !== undefined ? parseFloat(stock) : existingFruit.stock, // Stock in unit from category
                 image: image !== undefined ? image : existingFruit.image,
                 category_id: category_id !== undefined ? category_id : existingFruit.category_id
             };
@@ -237,6 +247,26 @@ class FruitController {
             });
         } catch (error) {
             console.error('Delete fruit error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
+    //calculate the total price of the fruits when user add to cart
+    static async calculateTotalPrice(req, res) {
+        try {
+            const { fruit_id, weight } = req.body;
+            const totalPrice = await FruitCalculationService.calculateTotalPrice(fruit_id, weight);
+            res.status(200).json({
+                success: true,
+                message: 'Total price calculated successfully',
+                data: { totalPrice }
+            });
+        } catch (error) {
+            console.error('Calculate total price error:', error);
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',

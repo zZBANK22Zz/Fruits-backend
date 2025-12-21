@@ -51,13 +51,21 @@ class CategoryController {
     // Create new category (admin only)
     static async createCategory(req, res) {
         try {
-            const { name } = req.body;
+            const { name, unit } = req.body;
 
             // Validation
             if (!name || name.trim() === '') {
                 return res.status(400).json({
                     success: false,
                     message: 'Category name is required'
+                });
+            }
+
+            // Validate unit if provided (must be 'kg' or 'piece')
+            if (unit !== undefined && unit !== null && !['kg', 'piece'].includes(unit)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Unit must be either 'kg' (kilogram) or 'piece'"
                 });
             }
 
@@ -70,8 +78,8 @@ class CategoryController {
                 });
             }
 
-            // Create category
-            const category = await CategoryModel.createCategory(name.trim());
+            // Create category (default unit is 'kg')
+            const category = await CategoryModel.createCategory(name.trim(), unit || 'kg');
 
             res.status(201).json({
                 success: true,
