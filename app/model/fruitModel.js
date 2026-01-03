@@ -271,6 +271,12 @@ class FruitModel {
         if (result.rows.length === 0) return null;
         return result.rows[0].stock >= weight;
     }
+
+    static async getPopularFruit() {
+        const query = `SELECT fruit_id, SUM(quantity) as total_quantity FROM order_items GROUP BY fruit_id ORDER BY total_quantity DESC LIMIT 4`;
+        const result = await pool.query(query);
+        return result.rows;
+    }
 }
 
 module.exports = FruitModel;
