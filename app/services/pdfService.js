@@ -41,7 +41,7 @@ class PDFService {
                         }
                         
                         doc.registerFont('ThaiFont', fontPath);
-                        console.log(`[PDF Service] Successfully registered Thai font: ${fontPath}`);
+                        //console.log(`[PDF Service] Successfully registered Thai font: ${fontPath}`);
                         return 'ThaiFont';
                     }
                 } catch (e) {

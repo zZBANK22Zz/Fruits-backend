@@ -263,7 +263,7 @@ class OrderController {
             }
 
             // Get current order
-            const currentOrder = await OrderModel.getOrderById(id);
+            const currentOrder = await OrderModel.getOrderById(id, client);
             if (!currentOrder) {
                 return res.status(404).json({
                     success: false,
@@ -275,7 +275,7 @@ class OrderController {
 
             // If changing to confirmed, reduce stock (by weight in kilograms)
             if (status === 'confirmed' && oldStatus !== 'confirmed') {
-                const orderItems = await OrderModel.getOrderItems(id);
+                const orderItems = await OrderModel.getOrderItems(id, client);
                 
                 await client.query('BEGIN');
                 try {
@@ -299,7 +299,7 @@ class OrderController {
 
             // If changing from confirmed to cancelled, restore stock (by weight in kilograms)
             if (oldStatus === 'confirmed' && status === 'cancelled') {
-                const orderItems = await OrderModel.getOrderItems(id);
+                const orderItems = await OrderModel.getOrderItems(id, client);
                 
                 await client.query('BEGIN');
                 try {
@@ -315,7 +315,7 @@ class OrderController {
             }
 
             // Update order status
-            const updatedOrder = await OrderModel.updateOrderStatus(id, status);
+            const updatedOrder = await OrderModel.updateOrderStatus(id, status, client);
             const completeOrder = await OrderModel.getOrderById(id);
 
             // Auto-generate invoice when status changes to "paid"
@@ -358,7 +358,7 @@ class OrderController {
             const userId = req.user.id;
 
             // Get current order
-            const currentOrder = await OrderModel.getOrderById(id);
+            const currentOrder = await OrderModel.getOrderById(id, client);
             if (!currentOrder) {
                 return res.status(404).json({
                     success: false,
@@ -385,7 +385,7 @@ class OrderController {
             const oldStatus = currentOrder.status;
 
             // Update order status to 'paid'
-            const updatedOrder = await OrderModel.updateOrderStatus(id, 'paid');
+            const updatedOrder = await OrderModel.updateOrderStatus(id, 'paid', client);
             const completeOrder = await OrderModel.getOrderById(id);
 
             // Auto-generate invoice when status changes to "paid"
