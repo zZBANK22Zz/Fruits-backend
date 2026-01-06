@@ -2,8 +2,8 @@ const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
 
-// --- IMPORT THE FONT AS DATA (Fixes Vercel Issue) ---
-// This requires Step 1 to be completed successfully
+// --- 1. IMPORT THE FONT AS DATA (Fixes Vercel Issue) ---
+// This requires the previous Step 1 (convert.js) to be completed
 let thaiFontBase64;
 try {
     thaiFontBase64 = require('./thaiFont');
@@ -13,6 +13,7 @@ try {
 
 class PDFService {
 
+    // --- 2. REGISTER FONT (Base64 Method) ---
     static registerThaiFont(doc) {
         if (thaiFontBase64) {
             try {
@@ -27,12 +28,10 @@ class PDFService {
         } else {
             console.warn('[PDF Service] Thai font data is missing.');
         }
-
-        // Fallback
-        return 'Helvetica';
+        return 'Helvetica'; // Fallback
     }
 
-    // Generate PDF invoice
+    // --- 3. GENERATE PDF (Your New Design) ---
     static async generateInvoicePDF(invoice, orderItems) {
         return new Promise((resolve, reject) => {
             try {
@@ -43,12 +42,9 @@ class PDFService {
                 });
                 const buffers = [];
                 
-                // 1. Register Thai font
+                // Register Font
                 const thaiFont = this.registerThaiFont(doc);
-                
-                // 2. Set fonts
                 const regularFont = thaiFont;
-                // If Thai font works, use it for bold too (to prevent squares)
                 const boldFont = thaiFont === 'ThaiFont' ? 'ThaiFont' : 'Helvetica-Bold';
                 
                 doc.on('data', buffers.push.bind(buffers));
@@ -63,8 +59,8 @@ class PDFService {
                 const margin = 50;
                 const contentWidth = pageWidth - (margin * 2);
                 
-                // --- LOGO LOADING ---
-                // We use process.cwd() to find the logo in Vercel/Production
+                // --- ROBUST LOGO FINDER ---
+                // This ensures the logo works on Vercel/Docker and Localhost
                 const logoCandidates = [
                     path.join(process.cwd(), 'public', 'images', 'Logo.png'),
                     path.join(__dirname, '../../public/images/Logo.png'),
@@ -79,7 +75,7 @@ class PDFService {
                 const logoWidth = 100;
                 const headerTop = 50;
                 
-                // Header Section with Logo
+                // --- HEADER ---
                 if (logoPath) {
                     try {
                         doc.image(logoPath, margin, headerTop, { 
@@ -120,9 +116,12 @@ class PDFService {
                 // Move down
                 doc.y = headerTop + logoHeight + 30;
                 
-                // Payment Method
+                // --- PAYMENT METHOD SECTION ---
                 const paymentSectionY = doc.y;
-                doc.roundedRect(margin, paymentSectionY, contentWidth, 35, 5).fillColor('#f8f9fa').fill().fillColor('black');
+                doc.roundedRect(margin, paymentSectionY, contentWidth, 35, 5)
+                   .fillColor('#f8f9fa')
+                   .fill()
+                   .fillColor('black'); // Reset
                 
                 doc.font(boldFont).fontSize(12).fillColor('#333333');
                 doc.text('วิธีการชำระเงิน', margin + 15, paymentSectionY + 8);
@@ -131,7 +130,7 @@ class PDFService {
                 
                 doc.y = paymentSectionY + 45;
                 
-                // Items Header
+                // --- ITEMS TABLE HEADER ---
                 doc.moveDown(1);
                 doc.font(boldFont).fontSize(18).fillColor('black');
                 doc.text('รายการสินค้า', { align: 'center' });
@@ -141,7 +140,6 @@ class PDFService {
                 doc.moveTo(margin, headerLineY).lineTo(pageWidth - margin, headerLineY).lineWidth(1).strokeColor('#333333').stroke();
                 doc.moveDown(1);
                 
-                // Items Table Header
                 const itemsStartY = doc.y;
                 const itemRowHeight = 25;
                 const col1X = margin + 10;
@@ -156,7 +154,7 @@ class PDFService {
                 doc.moveTo(margin, itemsStartY + 18).lineTo(pageWidth - margin, itemsStartY + 18).lineWidth(0.5).strokeColor('#cccccc').stroke();
                 doc.y = itemsStartY + itemRowHeight;
                 
-                // Items List
+                // --- ITEMS LIST ---
                 doc.font(regularFont).fontSize(13).fillColor('black');
                 
                 orderItems.forEach((item, index) => {
@@ -173,7 +171,7 @@ class PDFService {
                     doc.y += itemRowHeight;
                 });
                 
-                // Total Section
+                // --- TOTAL SECTION ---
                 const totalLineY = doc.y + 10;
                 doc.moveTo(margin, totalLineY).lineTo(pageWidth - margin, totalLineY).lineWidth(1.5).strokeColor('#333333').stroke();
                 doc.y = totalLineY + 20;
@@ -182,15 +180,18 @@ class PDFService {
                 const totalBoxY = doc.y;
                 const totalBoxHeight = 50;
                 
-                doc.roundedRect(margin, totalBoxY, contentWidth, totalBoxHeight, 5).fillColor('#fff3cd').fill().fillColor('black');
+                doc.roundedRect(margin, totalBoxY, contentWidth, totalBoxHeight, 5)
+                   .fillColor('#fff3cd')
+                   .fill()
+                   .fillColor('black');
                 
                 doc.font(boldFont).fontSize(20).fillColor('#333333');
                 doc.text(`ยอดชำระสุทธิ: ${invoiceTotal.toFixed(2)} บาท`, margin + 15, totalBoxY + 15, { align: 'left' });
                 
-                // Footer
+                // --- FOOTER ---
                 doc.y = totalBoxY + totalBoxHeight + 25;
                 const footerY = pageHeight - 120;
-                const footerX = (pageWidth / 2) - 235; 
+                const footerX = (pageWidth / 2) - 235;
                 
                 doc.font(regularFont).fontSize(16).fillColor('#666666');
                 doc.text('ขอบคุณที่ใช้บริการ', footerX, footerY, { align: 'center' });
