@@ -1,3 +1,9 @@
+let shopLogoBase64;
+try {
+    shopLogoBase64 = require('./shopLogo');
+} catch (e) {
+    console.warn('[PDF Service] Warning: shopLogo.js not found.');
+}
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
@@ -61,23 +67,21 @@ class PDFService {
                 const contentWidth = pageWidth - (margin * 2);
                 
                 // Load logo image
-                // Note: If logo fails in production, consider checking path.join(process.cwd(), 'public/images/Logo.png')
-                const logoPath = path.join(__dirname, 'public/images/Logo.png');
-                let logoHeight = 0;
-                const logoWidth = 100; // Increased from 70 to 100 for bigger logo
+                const logoWidth = 100;
                 const headerTop = 50;
-                
-                // Header Section with Logo and Shop Name
-                if (fs.existsSync(logoPath)) {
+                let logoHeight = 0;
+
+                if (shopLogoBase64) {
                     try {
-                        doc.image(logoPath, margin, headerTop, { 
+                        const logoBuffer = Buffer.from(shopLogoBase64, 'base64');
+                        doc.image(logoBuffer, margin, headerTop, { 
                             width: logoWidth,
                             height: logoWidth,
                             fit: [logoWidth, logoWidth]
                         });
                         logoHeight = logoWidth;
                     } catch (e) {
-                        console.warn('[PDF Service] Could not load logo image:', e.message);
+                        console.warn('[PDF Service] Failed to load logo from memory:', e.message);
                     }
                 }
                 
