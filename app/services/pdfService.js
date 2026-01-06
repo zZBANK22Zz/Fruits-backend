@@ -1,64 +1,34 @@
 const PDFDocument = require('pdfkit');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+
+// --- IMPORT THE FONT AS DATA (Fixes Vercel Issue) ---
+// This requires Step 1 to be completed successfully
+let thaiFontBase64;
+try {
+    thaiFontBase64 = require('./thaiFont');
+} catch (e) {
+    console.warn('[PDF Service] Warning: thaiFont.js not found. Run convert.js first.');
+}
 
 class PDFService {
-    /**
-     * Robustly finds the Thai font file in both Dev and Production environments
-     */
+
     static registerThaiFont(doc) {
-        // Define all possible places the fonts folder might be hidden
-        const possibleRoots = [
-            // 1. Production / Docker Root (Best for deployment)
-            path.join(process.cwd(), 'fonts'),
-            path.join(process.cwd(), 'app', 'fonts'),
-            
-            // 2. Relative to this file (Best for local dev)
-            // If this file is in /app/services, ../fonts goes to /app/fonts
-            path.join(__dirname, '../fonts'),
-            // Fallback if structure is deeper
-            path.join(__dirname, '../../fonts'),
-        ];
-
-        let foundPath = null;
-
-        // Loop through all possible root locations
-        for (const rootDir of possibleRoots) {
-            // We check two common naming patterns
-            const candidates = [
-                // Pattern A: Nested Google Fonts structure (Dev/Download)
-                path.join(rootDir, 'Noto_Sans_Thai', 'static', 'NotoSansThai-Regular.ttf'),
-                // Pattern B: Flat structure (Docker/Production copy)
-                path.join(rootDir, 'NotoSansThai-Regular.ttf')
-            ];
-
-            for (const filePath of candidates) {
-                if (fs.existsSync(filePath)) {
-                    // Check if file is valid (not empty)
-                    const stats = fs.statSync(filePath);
-                    if (stats.size > 10000) {
-                        foundPath = filePath;
-                        break;
-                    }
-                }
-            }
-            if (foundPath) break;
-        }
-
-        if (foundPath) {
+        if (thaiFontBase64) {
             try {
-                doc.registerFont('ThaiFont', foundPath);
-                // console.log(`[PDF Service] Loaded Thai font from: ${foundPath}`);
+                // Convert Base64 string back to Buffer
+                const fontBuffer = Buffer.from(thaiFontBase64, 'base64');
+                doc.registerFont('ThaiFont', fontBuffer);
+                console.log('[PDF Service] Successfully registered Thai font from memory.');
                 return 'ThaiFont';
             } catch (e) {
-                console.warn(`[PDF Service] Found font but failed to load: ${e.message}`);
+                console.warn(`[PDF Service] Failed to load Base64 font: ${e.message}`);
             }
+        } else {
+            console.warn('[PDF Service] Thai font data is missing.');
         }
 
-        // --- FALLBACK ---
-        console.warn('[PDF Service] WARNING: Could not find "NotoSansThai-Regular.ttf" in any common location.');
-        console.warn('[PDF Service] Checked locations:', possibleRoots.map(r => r).join(', '));
-        console.warn('[PDF Service] Using Helvetica (Thai text will not display correctly).');
+        // Fallback
         return 'Helvetica';
     }
 
@@ -66,7 +36,6 @@ class PDFService {
     static async generateInvoicePDF(invoice, orderItems) {
         return new Promise((resolve, reject) => {
             try {
-                // Create PDF with UTF-8 support
                 const doc = new PDFDocument({ 
                     margin: 50,
                     autoFirstPage: true,
@@ -74,13 +43,12 @@ class PDFService {
                 });
                 const buffers = [];
                 
-                // 1. Register Thai font using the new robust method
+                // 1. Register Thai font
                 const thaiFont = this.registerThaiFont(doc);
                 
-                // 2. Set fonts based on availability
+                // 2. Set fonts
                 const regularFont = thaiFont;
-                // If we don't have a specific Bold Thai font, we reuse the Regular one 
-                // (switching to Helvetica-Bold would break Thai characters)
+                // If Thai font works, use it for bold too (to prevent squares)
                 const boldFont = thaiFont === 'ThaiFont' ? 'ThaiFont' : 'Helvetica-Bold';
                 
                 doc.on('data', buffers.push.bind(buffers));
@@ -95,8 +63,8 @@ class PDFService {
                 const margin = 50;
                 const contentWidth = pageWidth - (margin * 2);
                 
-                // --- LOGO PATH FIX ---
-                // We apply similar robust logic for the logo to prevent it breaking in Prod too
+                // --- LOGO LOADING ---
+                // We use process.cwd() to find the logo in Vercel/Production
                 const logoCandidates = [
                     path.join(process.cwd(), 'public', 'images', 'Logo.png'),
                     path.join(__dirname, '../../public/images/Logo.png'),
@@ -222,7 +190,7 @@ class PDFService {
                 // Footer
                 doc.y = totalBoxY + totalBoxHeight + 25;
                 const footerY = pageHeight - 120;
-                const footerX = (pageWidth / 2) - 235; // Centered offset
+                const footerX = (pageWidth / 2) - 235; 
                 
                 doc.font(regularFont).fontSize(16).fillColor('#666666');
                 doc.text('ขอบคุณที่ใช้บริการ', footerX, footerY, { align: 'center' });
