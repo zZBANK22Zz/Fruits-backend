@@ -62,7 +62,7 @@ class PDFService {
                 
                 // Load logo image
                 // Note: If logo fails in production, consider checking path.join(process.cwd(), 'public/images/Logo.png')
-                const logoPath = path.join(__dirname, '../../public/images/Logo.png');
+                const logoPath = path.join(__dirname, 'public/images/Logo.png');
                 let logoHeight = 0;
                 const logoWidth = 100; // Increased from 70 to 100 for bigger logo
                 const headerTop = 50;
