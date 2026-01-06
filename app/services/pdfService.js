@@ -7,7 +7,7 @@ class PDFService {
     static registerThaiFont(doc) {
         // PDFKit only supports .ttf files, not .ttc (TrueType Collection)
         // Try to register a Thai font from common system locations
-        const fontsDir = path.join(__dirname, '../fonts');
+        const fontsDir = path.join(__dirname, '../../fonts');
         const fontPaths = [
             // Check in fonts root directory
             path.join(fontsDir, 'NotoSansThai-Regular.ttf'),
@@ -41,7 +41,7 @@ class PDFService {
                         }
                         
                         doc.registerFont('ThaiFont', fontPath);
-                        //console.log(`[PDF Service] Successfully registered Thai font: ${fontPath}`);
+                        console.log(`[PDF Service] Successfully registered Thai font: ${fontPath}`);
                         return 'ThaiFont';
                     }
                 } catch (e) {
