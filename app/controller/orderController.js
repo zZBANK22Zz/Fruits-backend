@@ -4,6 +4,7 @@ const InvoiceController = require('./invoiceController');
 const QRPromptPayService = require('../services/qrPromptPayService');
 const pool = require('../config/database');
 const PaymentSlipModel = require('../model/paymentSlipModel');
+const LineMessagingService = require('../services/lineMessagingService');
 
 class OrderController {
     // Create new order (authenticated users)
@@ -410,6 +411,11 @@ class OrderController {
                 message: 'Payment confirmed successfully. Invoice generated.',
                 data: { order: completeOrder }
             });
+
+            // Send LINE notification in background
+            if (completeOrder.line_user_id) {
+                LineMessagingService.sendPaymentConfirmation(completeOrder.line_user_id, completeOrder);
+            }
         } catch (error) {
             console.error('Confirm payment error:', error);
             res.status(500).json({
@@ -569,15 +575,39 @@ class OrderController {
                 notes: notes || null
             });
 
-            // Update order status to 'processing' or 'paid' (optional/business logic)
-            // For now, let's keep it pending or move to processing to indicate user has submitted
-            await OrderModel.updateOrderStatus(orderId, 'processing');
+            // Update order status to 'paid' immediately upon slip upload
+            const updatedOrder = await OrderModel.updateOrderStatus(orderId, 'paid');
+            const completeOrder = await OrderModel.getOrderById(orderId);
+
+            // Auto-generate invoice when status changes to "paid"
+            try {
+                await InvoiceController.generateInvoice(orderId, {
+                    user_id: completeOrder.user_id,
+                    total_amount: completeOrder.total_amount,
+                    payment_method: completeOrder.payment_method || 'Thai QR PromptPay',
+                    notes: completeOrder.notes
+                });
+            } catch (invoiceError) {
+                // Log error but don't fail the upload response
+                console.error('Failed to generate invoice during upload:', invoiceError.message);
+            }
 
             res.status(201).json({
                 success: true,
-                message: 'Payment slip uploaded successfully',
-                data: { slip }
+                message: 'Payment slip uploaded and order confirmed successfully.',
+                data: { 
+                    slip,
+                    order: completeOrder
+                }
             });
+
+            // Send LINE notification in background
+            if (completeOrder.line_user_id) {
+                console.log(`[DEBUG] Found LINE User ID: ${completeOrder.line_user_id}. Sending notification...`);
+                LineMessagingService.sendPaymentConfirmation(completeOrder.line_user_id, completeOrder);
+            } else {
+                console.log(`[DEBUG] No LINE User ID found for Order ID: ${completeOrder.id}. Skipping notification.`);
+            }
         } catch (error) {
             console.error('Upload payment slip error:', error);
             res.status(500).json({

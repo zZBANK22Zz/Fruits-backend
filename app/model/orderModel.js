@@ -103,7 +103,8 @@ class OrderModel {
             SELECT 
                 o.*,
                 u.username,
-                u.email
+                u.email,
+                u.line_user_id
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             WHERE o.id = $1
@@ -159,11 +160,12 @@ class OrderModel {
                 o.*,
                 u.username,
                 u.email,
+                u.line_user_id,
                 COUNT(oi.id) as item_count
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             LEFT JOIN order_items oi ON o.id = oi.order_id
-            GROUP BY o.id, u.username, u.email
+            GROUP BY o.id, u.username, u.email, u.line_user_id
             ORDER BY o.created_at DESC
         `;
         const result = await pool.query(query);
