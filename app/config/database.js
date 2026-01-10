@@ -30,23 +30,33 @@ if (process.env.DATABASE_URL) {
     };
 } else {
     // Local development or custom configuration
-    const sslConfig = process.env.POSTGRES_SSL === 'true' 
-        ? { rejectUnauthorized: false }
-        : false;
+    // const sslConfig = process.env.POSTGRES_SSL === 'true' 
+    //     ? { rejectUnauthorized: false }
+    //     : false;
     
+    // poolConfig = {
+    //     user: process.env.POSTGRES_USER,
+    //     password: process.env.POSTGRES_PASSWORD,
+    //     host: process.env.POSTGRES_HOST,
+    //     port: process.env.POSTGRES_PORT,
+    //     database: process.env.POSTGRES_DB,
+    //     ssl: sslConfig,
+    //     client_encoding: 'UTF8',
+    //     max: isServerless ? 1 : 20,
+    //     idleTimeoutMillis: isServerless ? 10000 : 30000,
+    //     connectionTimeoutMillis: isServerless ? 10000 : 5000,
+    //     allowExitOnIdle: isServerless ? true : false,
+    // };
+    // Use Neon connection for Local development
     poolConfig = {
-        user: process.env.POSTGRES_USER,
-        password: process.env.POSTGRES_PASSWORD,
-        host: process.env.POSTGRES_HOST,
-        port: process.env.POSTGRES_PORT,
-        database: process.env.POSTGRES_DB,
-        ssl: sslConfig,
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
         client_encoding: 'UTF8',
         max: isServerless ? 1 : 20,
         idleTimeoutMillis: isServerless ? 10000 : 30000,
         connectionTimeoutMillis: isServerless ? 10000 : 5000,
         allowExitOnIdle: isServerless ? true : false,
-    };
+    }
 }
 
 const pool = new Pool(poolConfig);

@@ -13,6 +13,7 @@ router.post('/login', AuthController.login);
 // LINE Login routes
 router.get('/line/login', LineLoginController.initiateLogin);
 router.post('/line/callback', LineLoginController.handleCallback);
+router.post('/line/verify', LineLoginController.verifyLineToken);
 router.post('/line/link', authMiddleware, LineLoginController.linkAccount);
 
 module.exports = router;

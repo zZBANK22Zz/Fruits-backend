@@ -36,6 +36,120 @@ class LineLoginController {
     }
 
     /**
+     * Verify LINE ID Token (from LIFF)
+     * POST /api/auth/line/verify
+     * Body: { idToken: string }
+     */
+    static async verifyLineToken(req, res) {
+        try {
+            const { idToken } = req.body;
+
+            if (!idToken) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID Token is required'
+                });
+            }
+
+            // Verify ID token with LINE's servers
+            const decodedToken = await LineLoginService.verifyIdToken(idToken);
+
+            // Extract user info from decoded token
+            // sub: LINE user ID, name: display name, picture: profile image, email: email
+            const { sub: line_user_id, name: display_name, picture: picture_url, email } = decodedToken;
+
+            // Check if user already exists with this LINE user ID
+            let user = await UserModel.findByLineUserId(line_user_id);
+
+            if (user) {
+                // Existing LINE user - login
+                const fullUser = await UserModel.findById(user.id);
+                const token = AuthService.generateToken(user);
+
+                return res.json({
+                    success: true,
+                    message: 'LINE Login successful',
+                    data: {
+                        user: {
+                            id: fullUser.id,
+                            username: fullUser.username,
+                            email: fullUser.email,
+                            first_name: fullUser.first_name,
+                            last_name: fullUser.last_name,
+                            role: fullUser.role,
+                            image: fullUser.image,
+                            line_user_id: fullUser.line_user_id
+                        },
+                        token
+                    }
+                });
+            }
+
+            // New LINE user - create account
+            // Generate username from display name or email
+            let username = (display_name || 'line_user').toLowerCase().replace(/\s+/g, '_');
+            if (email) {
+                username = email.split('@')[0];
+            }
+            
+            // Ensure username is unique
+            let finalUsername = username;
+            let counter = 1;
+            while (await UserModel.findByUsername(finalUsername)) {
+                finalUsername = `${username}_${counter}`;
+                counter++;
+            }
+
+            // Extract first and last name from display name
+            const displayNameStr = display_name || 'LINE User';
+            const nameParts = displayNameStr.trim().split(/\s+/);
+            const first_name = nameParts[0] || displayNameStr;
+            const last_name = nameParts.slice(1).join(' ') || '';
+
+            // Create user account
+            user = await UserModel.create({
+                username: finalUsername,
+                email: email || `${line_user_id}@line.local`, 
+                password: null, 
+                first_name,
+                last_name,
+                role: 'user',
+                line_user_id,
+                image: picture_url || null
+            });
+
+            // Get full user data
+            const fullUser = await UserModel.findById(user.id);
+            const token = AuthService.generateToken(user);
+
+            res.status(201).json({
+                success: true,
+                message: 'LINE account created and logged in successfully',
+                data: {
+                    user: {
+                        id: fullUser.id,
+                        username: fullUser.username,
+                        email: fullUser.email,
+                        first_name: fullUser.first_name,
+                        last_name: fullUser.last_name,
+                        role: fullUser.role,
+                        image: fullUser.image,
+                        line_user_id: fullUser.line_user_id
+                    },
+                    token
+                }
+            });
+        } catch (error) {
+            console.error('LINE token verification error:', error);
+            res.status(401).json({
+                success: false,
+                message: 'LINE token verification failed',
+                error: error.message
+            });
+        }
+    }
+
+    /**
      * Handle LINE Login callback
      * POST /api/auth/line/callback
      * Body: { code: string, state: string }
