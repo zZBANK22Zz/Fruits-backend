@@ -3,6 +3,7 @@ const FruitModel = require('../model/fruitModel');
 const InvoiceController = require('./invoiceController');
 const QRPromptPayService = require('../services/qrPromptPayService');
 const pool = require('../config/database');
+const PaymentSlipModel = require('../model/paymentSlipModel');
 
 class OrderController {
     // Create new order (authenticated users)
@@ -374,8 +375,9 @@ class OrderController {
                 });
             }
 
-            // Only allow confirming if order is in pending status
-            if (currentOrder.status !== 'pending') {
+            // Only allow confirming if order is in pending or processing status
+            const allowedStatuses = ['pending', 'processing'];
+            if (!allowedStatuses.includes(currentOrder.status)) {
                 return res.status(400).json({
                     success: false,
                     message: `Cannot confirm payment. Order status is already: ${currentOrder.status}`
@@ -519,6 +521,65 @@ class OrderController {
             res.send(qrCodeData.qrCodeBuffer);
         } catch (error) {
             console.error('Get order QR code image error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
+    // Upload payment slip
+    static async uploadPaymentSlip(req, res) {
+        try {
+            const { id: orderId } = req.params;
+            const userId = req.user.id;
+            const { image, amount, payment_date, notes } = req.body;
+
+            if (!image) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment slip image is required'
+                });
+            }
+
+            // Get order to verify ownership
+            const order = await OrderModel.getOrderById(orderId);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Authorization: Only the owner can upload a slip
+            if (order.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied. You can only upload slips for your own orders'
+                });
+            }
+
+            // Save the slip
+            const slip = await PaymentSlipModel.createPaymentSlip({
+                order_id: orderId,
+                image_data: image,
+                amount: amount || order.total_amount,
+                payment_date: payment_date ? new Date(payment_date) : new Date(),
+                notes: notes || null
+            });
+
+            // Update order status to 'processing' or 'paid' (optional/business logic)
+            // For now, let's keep it pending or move to processing to indicate user has submitted
+            await OrderModel.updateOrderStatus(orderId, 'processing');
+
+            res.status(201).json({
+                success: true,
+                message: 'Payment slip uploaded successfully',
+                data: { slip }
+            });
+        } catch (error) {
+            console.error('Upload payment slip error:', error);
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',
