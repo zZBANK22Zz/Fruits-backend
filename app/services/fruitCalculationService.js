@@ -10,6 +10,13 @@ class FruitCalculationService {
         }
         return fruit.price * weight;
     }
+
+
+    //To calculate the popula fruit from order_items table
+    static async calculatePopularFruit() {
+        const popularFruit = await FruitModel.getPopularFruit();
+        return popularFruit;
+    }
 }
 
 module.exports = FruitCalculationService;

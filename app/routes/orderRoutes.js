@@ -28,6 +28,9 @@ router.get('/:id', authMiddleware, OrderController.getOrderById);
 // Confirm payment (user can confirm their own order)
 router.post('/:id/confirm-payment', authMiddleware, OrderController.confirmPayment);
 
+// Upload payment slip
+router.post('/:id/upload-slip', authMiddleware, OrderController.uploadPaymentSlip);
+
 // Update order status (admin only)
 router.put('/:id/status', requireAdmin, OrderController.updateOrderStatus);
 

@@ -274,6 +274,25 @@ class FruitController {
             });
         }
     }
+
+    static async calculatePopularFruit(req, res) {
+        try {
+            const popularFruit = await FruitCalculationService.calculatePopularFruit();
+            res.status(200).json({
+                success: true,
+                message: 'Popular fruit calculated successfully',
+                data: { popularFruit }
+            });
+        }
+        catch (error) {
+            console.error('Calculate popular fruit error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
 }
 
 module.exports = FruitController;

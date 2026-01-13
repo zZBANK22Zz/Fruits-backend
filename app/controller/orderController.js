@@ -3,6 +3,8 @@ const FruitModel = require('../model/fruitModel');
 const InvoiceController = require('./invoiceController');
 const QRPromptPayService = require('../services/qrPromptPayService');
 const pool = require('../config/database');
+const PaymentSlipModel = require('../model/paymentSlipModel');
+const LineMessagingService = require('../services/lineMessagingService');
 
 class OrderController {
     // Create new order (authenticated users)
@@ -354,7 +356,9 @@ class OrderController {
                 });
             }
 
-            if (currentOrder.status !== 'pending') {
+            // Only allow confirming if order is in pending or processing status
+            const allowedStatuses = ['pending', 'processing'];
+            if (!allowedStatuses.includes(currentOrder.status)) {
                 return res.status(400).json({
                     success: false,
                     message: `Cannot confirm payment. Order status is already: ${currentOrder.status}`
@@ -385,6 +389,11 @@ class OrderController {
                 message: 'Payment confirmed successfully. Invoice generated.',
                 data: { order: completeOrder }
             });
+
+            // Send LINE notification in background
+            if (completeOrder.line_user_id) {
+                LineMessagingService.sendPaymentConfirmation(completeOrder.line_user_id, completeOrder);
+            }
         } catch (error) {
             console.error('Confirm payment error:', error);
             res.status(500).json({
@@ -491,6 +500,89 @@ class OrderController {
             res.send(qrCodeData.qrCodeBuffer);
         } catch (error) {
             console.error('Get order QR code image error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
+    // Upload payment slip
+    static async uploadPaymentSlip(req, res) {
+        try {
+            const { id: orderId } = req.params;
+            const userId = req.user.id;
+            const { image, amount, payment_date, notes } = req.body;
+
+            if (!image) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment slip image is required'
+                });
+            }
+
+            // Get order to verify ownership
+            const order = await OrderModel.getOrderById(orderId);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Authorization: Only the owner can upload a slip
+            if (order.user_id !== userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access denied. You can only upload slips for your own orders'
+                });
+            }
+
+            // Save the slip
+            const slip = await PaymentSlipModel.createPaymentSlip({
+                order_id: orderId,
+                image_data: image,
+                amount: amount || order.total_amount,
+                payment_date: payment_date ? new Date(payment_date) : new Date(),
+                notes: notes || null
+            });
+
+            // Update order status to 'paid' immediately upon slip upload
+            const updatedOrder = await OrderModel.updateOrderStatus(orderId, 'paid');
+            const completeOrder = await OrderModel.getOrderById(orderId);
+
+            // Auto-generate invoice when status changes to "paid"
+            try {
+                await InvoiceController.generateInvoice(orderId, {
+                    user_id: completeOrder.user_id,
+                    total_amount: completeOrder.total_amount,
+                    payment_method: completeOrder.payment_method || 'Thai QR PromptPay',
+                    notes: completeOrder.notes
+                });
+            } catch (invoiceError) {
+                // Log error but don't fail the upload response
+                console.error('Failed to generate invoice during upload:', invoiceError.message);
+            }
+
+            res.status(201).json({
+                success: true,
+                message: 'Payment slip uploaded and order confirmed successfully.',
+                data: { 
+                    slip,
+                    order: completeOrder
+                }
+            });
+
+            // Send LINE notification in background
+            if (completeOrder.line_user_id) {
+                console.log(`[DEBUG] Found LINE User ID: ${completeOrder.line_user_id}. Sending notification...`);
+                LineMessagingService.sendPaymentConfirmation(completeOrder.line_user_id, completeOrder);
+            } else {
+                console.log(`[DEBUG] No LINE User ID found for Order ID: ${completeOrder.id}. Skipping notification.`);
+            }
+        } catch (error) {
+            console.error('Upload payment slip error:', error);
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',

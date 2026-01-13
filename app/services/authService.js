@@ -21,17 +21,17 @@ class AuthService {
             email: user.email,
             first_name: user.first_name,
             last_name: user.last_name,
-            role: user.role || 'user'
+            role: user.role
         };
-        return jwt.sign(payload, process.env.JWT_SECRET || 'your-secret-key-change-in-production', {
-            expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+        return jwt.sign(payload, process.env.JWT_SECRET, {
+            expiresIn: process.env.JWT_EXPIRES_IN
         });
     }
 
     // Verify JWT token
     static verifyToken(token) {
         try {
-            return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+            return jwt.verify(token, process.env.JWT_SECRET);
         } catch (error) {
             throw new Error('Invalid or expired token');
         }

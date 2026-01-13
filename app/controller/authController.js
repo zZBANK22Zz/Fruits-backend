@@ -94,6 +94,14 @@ class AuthController {
                 });
             }
 
+            // Check if user is LINE-only user (no password)
+            if (!user.password) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'This account uses LINE Login. Please login with LINE instead.'
+                });
+            }
+
             // Verify password
             const isPasswordValid = await AuthService.comparePassword(password, user.password);
             if (!isPasswordValid) {
