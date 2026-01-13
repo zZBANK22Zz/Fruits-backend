@@ -34,7 +34,6 @@ class OrderController {
 
             for (const item of items) {
                 // Accept both 'quantity' (for pieces) and 'weight' (for kg) fields
-                // Determine which one to use based on fruit's unit
                 const quantity = item.quantity !== undefined ? item.quantity : null;
                 const weight = item.weight !== undefined ? item.weight : null;
                 
@@ -56,14 +55,11 @@ class OrderController {
 
                 // Determine the amount based on fruit's unit
                 let amount;
-                let unitLabel;
                 
                 if (fruit.unit === 'piece') {
                     // Fruit is sold by piece
                     amount = quantity !== null ? parseInt(quantity) : parseInt(weight || 0);
-                    unitLabel = 'pieces';
                     
-                    // Validate quantity is positive integer
                     if (amount <= 0 || !Number.isInteger(amount)) {
                         return res.status(400).json({
                             success: false,
@@ -71,7 +67,6 @@ class OrderController {
                         });
                     }
                     
-                    // Check stock availability (stock is in pieces)
                     if (fruit.stock < amount) {
                         return res.status(400).json({
                             success: false,
@@ -79,11 +74,9 @@ class OrderController {
                         });
                     }
                 } else {
-                    // Fruit is sold by weight (kg) - default
+                    // Fruit is sold by weight (kg)
                     amount = weight !== null ? parseFloat(weight) : parseFloat(quantity || 0);
-                    unitLabel = 'kg';
                     
-                    // Validate weight is positive
                     if (amount <= 0) {
                         return res.status(400).json({
                             success: false,
@@ -91,7 +84,6 @@ class OrderController {
                         });
                     }
                     
-                    // Check stock availability (stock is in kilograms)
                     if (fruit.stock < amount) {
                         return res.status(400).json({
                             success: false,
@@ -105,7 +97,7 @@ class OrderController {
 
                 orderItems.push({
                     fruit_id: item.fruit_id,
-                    quantity: amount, // Store amount (weight or quantity) in quantity column
+                    quantity: amount,
                     price: fruit.price,
                     subtotal: subtotal
                 });
@@ -124,11 +116,7 @@ class OrderController {
             };
 
             const order = await OrderModel.createOrder(orderData);
-
-            // Create order items
-            const createdItems = await OrderModel.createOrderItems(order.id, orderItems);
-
-            // Get complete order with items
+            await OrderModel.createOrderItems(order.id, orderItems);
             const completeOrder = await OrderModel.getOrderById(order.id);
 
             res.status(201).json({
@@ -205,7 +193,6 @@ class OrderController {
                 });
             }
 
-            // Authorization: Users can only view their own orders, admins can view all
             if (userRole !== 'admin' && order.user_id !== userId) {
                 return res.status(403).json({
                     success: false,
@@ -255,7 +242,6 @@ class OrderController {
             const { id } = req.params;
             const { status } = req.body;
 
-            // Validation
             const validStatuses = ['pending', 'confirmed', 'processing', 'paid', 'cancelled'];
             if (!status || !validStatuses.includes(status)) {
                 return res.status(400).json({
@@ -264,8 +250,7 @@ class OrderController {
                 });
             }
 
-            // Get current order
-            const currentOrder = await OrderModel.getOrderById(id);
+            const currentOrder = await OrderModel.getOrderById(id, client);
             if (!currentOrder) {
                 return res.status(404).json({
                     success: false,
@@ -275,14 +260,13 @@ class OrderController {
 
             const oldStatus = currentOrder.status;
 
-            // If changing to confirmed, reduce stock (by weight in kilograms)
+            // If changing to confirmed, reduce stock
             if (status === 'confirmed' && oldStatus !== 'confirmed') {
-                const orderItems = await OrderModel.getOrderItems(id);
+                const orderItems = await OrderModel.getOrderItems(id, client);
                 
                 await client.query('BEGIN');
                 try {
                     for (const item of orderItems) {
-                        // item.quantity contains weight in kilograms (decimal)
                         const fruit = await FruitModel.reduceStock(item.fruit_id, item.quantity);
                         if (!fruit) {
                             await client.query('ROLLBACK');
@@ -299,14 +283,13 @@ class OrderController {
                 }
             }
 
-            // If changing from confirmed to cancelled, restore stock (by weight in kilograms)
+            // If changing from confirmed to cancelled, restore stock
             if (oldStatus === 'confirmed' && status === 'cancelled') {
-                const orderItems = await OrderModel.getOrderItems(id);
+                const orderItems = await OrderModel.getOrderItems(id, client);
                 
                 await client.query('BEGIN');
                 try {
                     for (const item of orderItems) {
-                        // item.quantity contains weight in kilograms (decimal)
                         await FruitModel.restoreStock(item.fruit_id, item.quantity);
                     }
                     await client.query('COMMIT');
@@ -316,21 +299,20 @@ class OrderController {
                 }
             }
 
-            // Update order status
-            const updatedOrder = await OrderModel.updateOrderStatus(id, status);
-            const completeOrder = await OrderModel.getOrderById(id);
+            const updatedOrder = await OrderModel.updateOrderStatus(id, status, client);
+            const completeOrder = await OrderModel.getOrderById(id, client);
 
             // Auto-generate invoice when status changes to "paid"
             if (status === 'paid' && oldStatus !== 'paid') {
                 try {
+                    // ✅ FIXED: Added 'client' parameter to prevent deadlock
                     await InvoiceController.generateInvoice(id, {
                         user_id: completeOrder.user_id,
                         total_amount: completeOrder.total_amount,
                         payment_method: completeOrder.payment_method,
                         notes: completeOrder.notes
-                    });
+                    }, client);
                 } catch (invoiceError) {
-                    // Log error but don't fail the order status update
                     console.error('Failed to generate invoice:', invoiceError.message);
                 }
             }
@@ -359,8 +341,7 @@ class OrderController {
             const { id } = req.params;
             const userId = req.user.id;
 
-            // Get current order
-            const currentOrder = await OrderModel.getOrderById(id);
+            const currentOrder = await OrderModel.getOrderById(id, client);
             if (!currentOrder) {
                 return res.status(404).json({
                     success: false,
@@ -368,7 +349,6 @@ class OrderController {
                 });
             }
 
-            // Verify order belongs to user
             if (currentOrder.user_id !== userId) {
                 return res.status(403).json({
                     success: false,
@@ -387,21 +367,19 @@ class OrderController {
 
             const oldStatus = currentOrder.status;
 
-            // Update order status to 'paid'
-            const updatedOrder = await OrderModel.updateOrderStatus(id, 'paid');
-            const completeOrder = await OrderModel.getOrderById(id);
+            const updatedOrder = await OrderModel.updateOrderStatus(id, 'paid', client);
+            const completeOrder = await OrderModel.getOrderById(id, client);
 
-            // Auto-generate invoice when status changes to "paid"
             if (oldStatus !== 'paid') {
                 try {
+                    // ✅ This was already correct in your code
                     await InvoiceController.generateInvoice(id, {
                         user_id: completeOrder.user_id,
                         total_amount: completeOrder.total_amount,
                         payment_method: completeOrder.payment_method,
                         notes: completeOrder.notes
-                    });
+                    }, client);
                 } catch (invoiceError) {
-                    // Log error but don't fail the order status update
                     console.error('Failed to generate invoice:', invoiceError.message);
                 }
             }
@@ -435,8 +413,9 @@ class OrderController {
             const userId = req.user.id;
             const userRole = req.user.role;
 
-            // Get order
+            // ✅ FIXED: Removed 'client' because it's undefined here
             const order = await OrderModel.getOrderById(id);
+            
             if (!order) {
                 return res.status(404).json({
                     success: false,
@@ -444,7 +423,6 @@ class OrderController {
                 });
             }
 
-            // Authorization: Users can only get QR code for their own orders, admins can get for any order
             if (userRole !== 'admin' && order.user_id !== userId) {
                 return res.status(403).json({
                     success: false,
@@ -452,7 +430,6 @@ class OrderController {
                 });
             }
 
-            // Only generate QR code for pending orders
             if (order.status !== 'pending') {
                 return res.status(400).json({
                     success: false,
@@ -460,7 +437,6 @@ class OrderController {
                 });
             }
 
-            // Generate QR code
             const qrCodeData = await QRPromptPayService.generateQRCodeForOrder(order);
 
             res.status(200).json({
@@ -470,8 +446,8 @@ class OrderController {
                     order_id: order.id,
                     order_number: order.order_number,
                     amount: order.total_amount,
-                    qr_code: qrCodeData.qrCodeDataURL, // Base64 data URL for frontend display
-                    payload: qrCodeData.payload, // PromptPay payload string
+                    qr_code: qrCodeData.qrCodeDataURL, 
+                    payload: qrCodeData.payload, 
                     phone_number: qrCodeData.phoneNumber
                 }
             });
@@ -492,8 +468,9 @@ class OrderController {
             const userId = req.user.id;
             const userRole = req.user.role;
 
-            // Get order
+            // ✅ FIXED: Removed 'client' because it's undefined here
             const order = await OrderModel.getOrderById(id);
+            
             if (!order) {
                 return res.status(404).json({
                     success: false,
@@ -501,7 +478,6 @@ class OrderController {
                 });
             }
 
-            // Authorization: Users can only get QR code for their own orders, admins can get for any order
             if (userRole !== 'admin' && order.user_id !== userId) {
                 return res.status(403).json({
                     success: false,
@@ -509,7 +485,6 @@ class OrderController {
                 });
             }
 
-            // Only generate QR code for pending orders
             if (order.status !== 'pending') {
                 return res.status(400).json({
                     success: false,
@@ -517,10 +492,8 @@ class OrderController {
                 });
             }
 
-            // Generate QR code
             const qrCodeData = await QRPromptPayService.generateQRCodeForOrder(order);
 
-            // Set response headers for image
             res.setHeader('Content-Type', 'image/png');
             res.setHeader('Content-Disposition', `inline; filename=qr-promptpay-${order.order_number}.png`);
 
@@ -620,4 +593,3 @@ class OrderController {
 }
 
 module.exports = OrderController;
-

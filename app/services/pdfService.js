@@ -1,98 +1,42 @@
+let shopLogoBase64;
+try {
+    shopLogoBase64 = require('./shopLogo');
+} catch (e) {
+    console.warn('[PDF Service] Warning: shopLogo.js not found.');
+}
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-class PDFService {
-    // Register Thai-supporting font if available, otherwise use default
-    static registerThaiFont(doc) {
-        // PDFKit only supports .ttf files, not .ttc (TrueType Collection)
-        // Try to register a Thai font from common system locations
-        const fontsDir = path.join(__dirname, '../../fonts');
-        const fontPaths = [
-            // Check in fonts root directory
-            path.join(fontsDir, 'NotoSansThai-Regular.ttf'),
-            // Check in Noto_Sans_Thai subdirectory (Google Fonts download structure)
-            path.join(fontsDir, 'Noto_Sans_Thai', 'static', 'NotoSansThai-Regular.ttf'),
-            path.join(fontsDir, 'Noto_Sans_Thai', 'NotoSansThai-Regular.ttf'),
-            // Check in any subdirectory (recursive search fallback)
-            path.join(fontsDir, '**', 'NotoSansThai-Regular.ttf'),
-            // System font locations
-            '/usr/share/fonts/truetype/thai/NotoSansThai-Regular.ttf', // Linux
-            '/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf', // Linux alternative
-            'C:/Windows/Fonts/THSarabunNew.ttf', // Windows
-            'C:/Windows/Fonts/THSarabun.ttf', // Windows alternative
-        ];
+// --- FIXED LOGIC: Import the font data you created ---
+let thaiFontBase64;
+try {
+    thaiFontBase64 = require('./thaiFont');
+} catch (e) {
+    console.warn('[PDF Service] Warning: thaiFont.js not found. Run convert.js first.');
+}
 
-        // First, try the specific paths
-        for (const fontPath of fontPaths) {
-            // Skip wildcard paths in first pass
-            if (fontPath.includes('**')) continue;
-            
-            if (fs.existsSync(fontPath)) {
-                try {
-                    // Only try .ttf files, PDFKit doesn't support .ttc
-                    if (fontPath.endsWith('.ttf')) {
-                        // Verify it's actually a font file (not HTML or text)
-                        const stats = fs.statSync(fontPath);
-                        // Font files should be at least 10KB
-                        if (stats.size < 10000) {
-                            console.warn(`[PDF Service] Font file too small (${stats.size} bytes), skipping: ${fontPath}`);
-                            continue;
-                        }
-                        
-                        doc.registerFont('ThaiFont', fontPath);
-                        console.log(`[PDF Service] Successfully registered Thai font: ${fontPath}`);
-                        return 'ThaiFont';
-                    }
-                } catch (e) {
-                    console.warn(`[PDF Service] Failed to register font at ${fontPath}:`, e.message);
-                    // Continue to next font path
-                }
+class PDFService {
+    
+    // --- FIXED LOGIC: Load font from memory (Base64) ---
+    static registerThaiFont(doc) {
+        if (thaiFontBase64) {
+            try {
+                // Convert the Base64 string back to a buffer
+                const fontBuffer = Buffer.from(thaiFontBase64, 'base64');
+                doc.registerFont('ThaiFont', fontBuffer);
+                console.log('[PDF Service] Successfully registered Thai font from memory.');
+                return 'ThaiFont';
+            } catch (e) {
+                console.warn(`[PDF Service] Failed to load Base64 font: ${e.message}`);
             }
         }
         
-        // If no font found, try searching recursively in fonts directory
-        try {
-            const findFontRecursive = (dir) => {
-                const entries = fs.readdirSync(dir, { withFileTypes: true });
-                for (const entry of entries) {
-                    const fullPath = path.join(dir, entry.name);
-                    if (entry.isDirectory()) {
-                        const found = findFontRecursive(fullPath);
-                        if (found) return found;
-                    } else if (entry.isFile() && entry.name === 'NotoSansThai-Regular.ttf') {
-                        const stats = fs.statSync(fullPath);
-                        if (stats.size >= 10000) {
-                            return fullPath;
-                        }
-                    }
-                }
-                return null;
-            };
-            
-            if (fs.existsSync(fontsDir)) {
-                const foundFont = findFontRecursive(fontsDir);
-                if (foundFont) {
-                    try {
-                        doc.registerFont('ThaiFont', foundFont);
-                        console.log(`[PDF Service] Successfully registered Thai font (found recursively): ${foundFont}`);
-                        return 'ThaiFont';
-                    } catch (e) {
-                        console.warn(`[PDF Service] Failed to register recursively found font: ${e.message}`);
-                    }
-                }
-            }
-        } catch (e) {
-            // Ignore recursive search errors
-        }
-        
-        // Fallback to Helvetica (will show garbled text for Thai, but works for English)
-        console.warn('[PDF Service] No valid Thai font found, using Helvetica (Thai characters may not display correctly)');
-        console.warn('[PDF Service] To fix: Download NotoSansThai-Regular.ttf from https://fonts.google.com/noto/specimen/Noto+Sans+Thai and place it in backend/fonts/');
+        // Fallback if something goes wrong
         return 'Helvetica';
     }
 
-    // Generate PDF invoice
+    // --- YOUR EXACT DESIGN CODE (Unchanged) ---
     static async generateInvoicePDF(invoice, orderItems) {
         return new Promise((resolve, reject) => {
             try {
@@ -123,22 +67,21 @@ class PDFService {
                 const contentWidth = pageWidth - (margin * 2);
                 
                 // Load logo image
-                const logoPath = path.join(__dirname, '../../public/images/Logo.png');
-                let logoHeight = 0;
-                const logoWidth = 100; // Increased from 70 to 100 for bigger logo
+                const logoWidth = 100;
                 const headerTop = 50;
-                
-                // Header Section with Logo and Shop Name
-                if (fs.existsSync(logoPath)) {
+                let logoHeight = 0;
+
+                if (shopLogoBase64) {
                     try {
-                        doc.image(logoPath, margin, headerTop, { 
+                        const logoBuffer = Buffer.from(shopLogoBase64, 'base64');
+                        doc.image(logoBuffer, margin, headerTop, { 
                             width: logoWidth,
                             height: logoWidth,
                             fit: [logoWidth, logoWidth]
                         });
                         logoHeight = logoWidth;
                     } catch (e) {
-                        console.warn('[PDF Service] Could not load logo image:', e.message);
+                        console.warn('[PDF Service] Failed to load logo from memory:', e.message);
                     }
                 }
                 
@@ -307,4 +250,3 @@ class PDFService {
 }
 
 module.exports = PDFService;
-

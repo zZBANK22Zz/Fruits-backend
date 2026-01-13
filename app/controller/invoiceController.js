@@ -4,10 +4,12 @@ const PDFService = require('../services/pdfService');
 
 class InvoiceController {
     // Generate invoice for order (called automatically when order status = paid)
-    static async generateInvoice(orderId, orderData) {
+    // ✅ UPDATED: Accepts optional 'client' to prevent DB deadlock
+    static async generateInvoice(orderId, orderData, client = null) {
         try {
             // Check if invoice already exists
-            const existingInvoice = await InvoiceModel.invoiceExistsForOrder(orderId);
+            // ✅ UPDATED: Pass 'client' to model
+            const existingInvoice = await InvoiceModel.invoiceExistsForOrder(orderId, client);
             if (existingInvoice) {
                 throw new Error('Invoice already exists for this order');
             }
@@ -22,7 +24,8 @@ class InvoiceController {
                 notes: orderData.notes || null
             };
 
-            const invoice = await InvoiceModel.createInvoice(invoiceData);
+            // ✅ UPDATED: Pass 'client' to model
+            const invoice = await InvoiceModel.createInvoice(invoiceData, client);
             return invoice;
         } catch (error) {
             console.error('Generate invoice error:', error);
@@ -101,6 +104,7 @@ class InvoiceController {
             const userId = req.user.id;
             const userRole = req.user.role;
 
+            // ✅ UPDATED: Ensure NO client is passed here (read-only)
             const invoice = await InvoiceModel.getInvoiceByOrderId(orderId);
 
             if (!invoice) {
@@ -211,4 +215,3 @@ class InvoiceController {
 }
 
 module.exports = InvoiceController;
-
