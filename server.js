@@ -9,11 +9,12 @@ const fruitRoutes = require('./app/routes/fruitRoutes');
 const categoryRoutes = require('./app/routes/categoryRoutes');
 const orderRoutes = require('./app/routes/orderRoutes');
 const invoiceRoutes = require('./app/routes/invoiceRoutes');
+const notificationRoutes = require('./app/routes/notificationRoutes');
 const OrderCleanupService = require('./app/services/orderCleanupService');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8000;
 
 // Middleware
 // Increase body parser limit to handle large image uploads (50MB)
@@ -30,6 +31,7 @@ app.use('/api/fruits', fruitRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check route
 app.get('/', (req, res) => {

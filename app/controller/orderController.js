@@ -5,6 +5,8 @@ const QRPromptPayService = require('../services/qrPromptPayService');
 const pool = require('../config/database');
 const PaymentSlipModel = require('../model/paymentSlipModel');
 const LineMessagingService = require('../services/lineMessagingService');
+const NotificationModel = require('../model/notificationModel');
+const UserModel = require('../model/userModel');
 
 class OrderController {
     // Create new order (authenticated users)
@@ -256,7 +258,7 @@ class OrderController {
             const { status } = req.body;
 
             // Validation
-            const validStatuses = ['pending', 'confirmed', 'processing', 'paid', 'cancelled'];
+            const validStatuses = ['pending', 'confirmed', 'processing', 'paid', 'cancelled', 'received', 'preparing', 'completed', 'shipped'];
             if (!status || !validStatuses.includes(status)) {
                 return res.status(400).json({
                     success: false,
@@ -329,9 +331,23 @@ class OrderController {
                         payment_method: completeOrder.payment_method,
                         notes: completeOrder.notes
                     });
-                } catch (invoiceError) {
+
+                    // Trigger internal notification for all admins
+                    const admins = await UserModel.getAllUsers();
+                    const adminUsers = admins.filter(u => u.role === 'admin');
+                    
+                    for (const admin of adminUsers) {
+                        await NotificationModel.createNotification({
+                            user_id: admin.id,
+                            title: 'New Payment Received',
+                            message: `Order ${completeOrder.order_number} has been paid. Amount: ฿${completeOrder.total_amount}. Please prepare the order.`,
+                            type: 'order_paid',
+                            related_id: completeOrder.id
+                        });
+                    }
+                } catch (notificationError) {
                     // Log error but don't fail the order status update
-                    console.error('Failed to generate invoice:', invoiceError.message);
+                    console.error('Failed to generate invoice or notification:', notificationError.message);
                 }
             }
 
@@ -587,9 +603,23 @@ class OrderController {
                     payment_method: completeOrder.payment_method || 'Thai QR PromptPay',
                     notes: completeOrder.notes
                 });
-            } catch (invoiceError) {
+
+                // Trigger internal notification for all admins
+                const admins = await UserModel.getAllUsers();
+                const adminUsers = admins.filter(u => u.role === 'admin');
+                
+                for (const admin of adminUsers) {
+                    await NotificationModel.createNotification({
+                        user_id: admin.id,
+                        title: 'New Payment Receipt Uploaded',
+                        message: `A payment slip has been uploaded for Order ${completeOrder.order_number}. Amount: ฿${completeOrder.total_amount}.`,
+                        type: 'slip_uploaded',
+                        related_id: completeOrder.id
+                    });
+                }
+            } catch (notificationError) {
                 // Log error but don't fail the upload response
-                console.error('Failed to generate invoice during upload:', invoiceError.message);
+                console.error('Failed to generate invoice or notification during upload:', notificationError.message);
             }
 
             res.status(201).json({
