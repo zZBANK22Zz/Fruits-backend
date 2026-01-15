@@ -11,12 +11,20 @@ class InvoiceModel {
     }
 
     // Create new invoice
-    static async createInvoice(invoiceData) {
+    // UPDATED: Accepts optional client
+    static async createInvoice(invoiceData, client = null) {
         const { order_id, user_id, subtotal, total_amount, payment_method, payment_date, notes } = invoiceData;
         
-        const client = await pool.connect();
+        // If client is passed, use it. If not, connect to pool.
+        const db = client || await pool.connect();
+        
+        // Only manage the transaction (BEGIN/COMMIT) if we created the connection ourselves
+        const shouldManageTransaction = !client;
+
         try {
-            await client.query('BEGIN');
+            if (shouldManageTransaction) {
+                await db.query('BEGIN');
+            }
 
             // Insert invoice with temporary invoice_number
             const tempInvoiceNumber = `TEMP-${Date.now()}`;
@@ -25,7 +33,7 @@ class InvoiceModel {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id
             `;
-            const invoiceResult = await client.query(insertInvoiceQuery, [
+            const invoiceResult = await db.query(insertInvoiceQuery, [
                 tempInvoiceNumber,
                 order_id,
                 user_id,
@@ -46,20 +54,30 @@ class InvoiceModel {
                 WHERE id = $2
                 RETURNING *
             `;
-            const updatedInvoice = await client.query(updateInvoiceQuery, [invoiceNumber, invoiceId]);
+            const updatedInvoice = await db.query(updateInvoiceQuery, [invoiceNumber, invoiceId]);
 
-            await client.query('COMMIT');
+            if (shouldManageTransaction) {
+                await db.query('COMMIT');
+            }
+            
             return updatedInvoice.rows[0];
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (shouldManageTransaction) {
+                await db.query('ROLLBACK');
+            }
             throw error;
         } finally {
-            client.release();
+            // Only release if we created the connection ourselves
+            if (shouldManageTransaction) {
+                db.release();
+            }
         }
     }
 
     // Get invoice by ID with order and user details
-    static async getInvoiceById(invoiceId) {
+    // UPDATED: Accepts optional client
+    static async getInvoiceById(invoiceId, client = null) {
+        const db = client || pool;
         const query = `
             SELECT 
                 i.*,
@@ -76,12 +94,14 @@ class InvoiceModel {
             LEFT JOIN users u ON i.user_id = u.id
             WHERE i.id = $1
         `;
-        const result = await pool.query(query, [invoiceId]);
+        const result = await db.query(query, [invoiceId]);
         return result.rows[0];
     }
 
     // Get invoice by order ID
-    static async getInvoiceByOrderId(orderId) {
+    // UPDATED: Accepts optional client
+    static async getInvoiceByOrderId(orderId, client = null) {
+        const db = client || pool;
         const query = `
             SELECT 
                 i.*,
@@ -98,7 +118,7 @@ class InvoiceModel {
             LEFT JOIN users u ON i.user_id = u.id
             WHERE i.order_id = $1
         `;
-        const result = await pool.query(query, [orderId]);
+        const result = await db.query(query, [orderId]);
         return result.rows[0];
     }
 
@@ -137,12 +157,13 @@ class InvoiceModel {
     }
 
     // Check if invoice exists for order
-    static async invoiceExistsForOrder(orderId) {
+    // UPDATED: Accepts optional client
+    static async invoiceExistsForOrder(orderId, client = null) {
+        const db = client || pool;
         const query = 'SELECT id FROM invoices WHERE order_id = $1';
-        const result = await pool.query(query, [orderId]);
+        const result = await db.query(query, [orderId]);
         return result.rows.length > 0;
     }
 }
 
 module.exports = InvoiceModel;
-
