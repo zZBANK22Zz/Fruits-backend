@@ -9,6 +9,33 @@ const NotificationModel = require('../model/notificationModel');
 const UserModel = require('../model/userModel');
 
 class OrderController {
+    // Helper to manage stock changes based on status transitions
+    static async handleStockManagement(orderId, oldStatus, newStatus, client) {
+        const committedStatuses = ['confirmed', 'paid', 'preparing', 'completed', 'shipped', 'received'];
+        
+        const isOldCommitted = committedStatuses.includes(oldStatus);
+        const isNewCommitted = committedStatuses.includes(newStatus);
+
+        // Case 1: Transitioning to a committed state from a non-committed state -> Reduce Stock
+        if (!isOldCommitted && isNewCommitted) {
+            const orderItems = await OrderModel.getOrderItems(orderId, client);
+            for (const item of orderItems) {
+                const fruit = await FruitModel.reduceStock(item.fruit_id, item.quantity);
+                if (!fruit) {
+                    throw new Error(`Insufficient stock for fruit ID ${item.fruit_id}`);
+                }
+            }
+        }
+        
+        // Case 2: Transitioning from a committed state to a non-committed state (cancelled) -> Restore Stock
+        if (isOldCommitted && newStatus === 'cancelled') {
+            const orderItems = await OrderModel.getOrderItems(orderId, client);
+            for (const item of orderItems) {
+                await FruitModel.restoreStock(item.fruit_id, item.quantity);
+            }
+        }
+    }
+
     // Create new order (authenticated users)
     static async createOrder(req, res) {
         try {
@@ -263,43 +290,17 @@ class OrderController {
 
             const oldStatus = currentOrder.status;
 
-            // If changing to confirmed, reduce stock
-            if (status === 'confirmed' && oldStatus !== 'confirmed') {
-                const orderItems = await OrderModel.getOrderItems(id, client);
-                
-                await client.query('BEGIN');
-                try {
-                    for (const item of orderItems) {
-                        const fruit = await FruitModel.reduceStock(item.fruit_id, item.quantity);
-                        if (!fruit) {
-                            await client.query('ROLLBACK');
-                            return res.status(400).json({
-                                success: false,
-                                message: `Insufficient stock for fruit ID ${item.fruit_id}`
-                            });
-                        }
-                    }
-                    await client.query('COMMIT');
-                } catch (error) {
-                    await client.query('ROLLBACK');
-                    throw error;
-                }
-            }
-
-            // If changing from confirmed to cancelled, restore stock
-            if (oldStatus === 'confirmed' && status === 'cancelled') {
-                const orderItems = await OrderModel.getOrderItems(id, client);
-                
-                await client.query('BEGIN');
-                try {
-                    for (const item of orderItems) {
-                        await FruitModel.restoreStock(item.fruit_id, item.quantity);
-                    }
-                    await client.query('COMMIT');
-                } catch (error) {
-                    await client.query('ROLLBACK');
-                    throw error;
-                }
+            // Manage stock transition
+            await client.query('BEGIN');
+            try {
+                await OrderController.handleStockManagement(id, oldStatus, status, client);
+                await client.query('COMMIT');
+            } catch (error) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    success: false,
+                    message: error.message
+                });
             }
 
             const updatedOrder = await OrderModel.updateOrderStatus(id, status, client);
@@ -384,6 +385,19 @@ class OrderController {
             }
 
             const oldStatus = currentOrder.status;
+
+            // Manage stock transition
+            await client.query('BEGIN');
+            try {
+                await OrderController.handleStockManagement(id, oldStatus, 'paid', client);
+                await client.query('COMMIT');
+            } catch (error) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    success: false,
+                    message: error.message
+                });
+            }
 
             const updatedOrder = await OrderModel.updateOrderStatus(id, 'paid', client);
             const completeOrder = await OrderModel.getOrderById(id, client);
@@ -566,37 +580,60 @@ class OrderController {
                 notes: notes || null
             });
 
-            // Update order status to 'paid' immediately upon slip upload
-            const updatedOrder = await OrderModel.updateOrderStatus(orderId, 'paid');
-            const completeOrder = await OrderModel.getOrderById(orderId);
-
-            // Auto-generate invoice when status changes to "paid"
+            // Update order status and manage stock
+            const client = await pool.connect();
+            let completeOrder = null;
+            
             try {
-                await InvoiceController.generateInvoice(orderId, {
-                    user_id: completeOrder.user_id,
-                    total_amount: completeOrder.total_amount,
-                    payment_method: completeOrder.payment_method || 'Thai QR PromptPay',
-                    notes: completeOrder.notes
-                });
+                const oldStatus = order.status;
+                const newStatus = 'paid';
 
-                // Trigger internal notification for all admins
-                const admins = await UserModel.getAllUsers();
-                const adminUsers = admins.filter(u => u.role === 'admin');
-                
-                for (const admin of adminUsers) {
-                    await NotificationModel.createNotification({
-                        user_id: admin.id,
-                        title: 'New Payment Receipt Uploaded',
-                        message: `A payment slip has been uploaded for Order ${completeOrder.order_number}. Amount: ฿${completeOrder.total_amount}.`,
-                        type: 'slip_uploaded',
-                        related_id: completeOrder.id
-                    });
+                // CRITICAL SECTION: Stock and Status Update
+                await client.query('BEGIN');
+                try {
+                    await OrderController.handleStockManagement(orderId, oldStatus, newStatus, client);
+                    await OrderModel.updateOrderStatus(orderId, newStatus, client);
+                    await client.query('COMMIT');
+                } catch (error) {
+                    await client.query('ROLLBACK');
+                    // Important: These are critical errors, let them bubble up to the outer catch
+                    throw error;
                 }
-            } catch (notificationError) {
-                // Log error but don't fail the upload response
-                console.error('Failed to generate invoice or notification during upload:', notificationError.message);
+
+                completeOrder = await OrderModel.getOrderById(orderId, client);
+
+                // NON-CRITICAL SECTION: Side effects (Invoice, Notifications)
+                try {
+                    // Auto-generate invoice when status changes to "paid"
+                    await InvoiceController.generateInvoice(orderId, {
+                        user_id: completeOrder.user_id,
+                        total_amount: completeOrder.total_amount,
+                        payment_method: completeOrder.payment_method || 'Thai QR PromptPay',
+                        notes: completeOrder.notes
+                    }, client);
+
+                    // Trigger internal notification for all admins
+                    const admins = await UserModel.getAllUsers();
+                    const adminUsers = admins.filter(u => u.role === 'admin');
+                    
+                    for (const admin of adminUsers) {
+                        await NotificationModel.createNotification({
+                            user_id: admin.id,
+                            title: 'New Payment Receipt Uploaded',
+                            message: `A payment slip has been uploaded for Order ${completeOrder.order_number}. Amount: ฿${completeOrder.total_amount}.`,
+                            type: 'slip_uploaded',
+                            related_id: completeOrder.id
+                        });
+                    }
+                } catch (sideEffectError) {
+                    // Log side effect errors but don't fail the response
+                    console.error('Side effect failed during upload (Invoice/Notification):', sideEffectError.message);
+                }
+            } finally {
+                client.release();
             }
 
+            // Return success only if everything up to completeOrder succeeded
             res.status(201).json({
                 success: true,
                 message: 'Payment slip uploaded and order confirmed successfully.',
@@ -607,11 +644,9 @@ class OrderController {
             });
 
             // Send LINE notification in background
-            if (completeOrder.line_user_id) {
+            if (completeOrder && completeOrder.line_user_id) {
                 console.log(`[DEBUG] Found LINE User ID: ${completeOrder.line_user_id}. Sending notification...`);
                 LineMessagingService.sendPaymentConfirmation(completeOrder.line_user_id, completeOrder);
-            } else {
-                console.log(`[DEBUG] No LINE User ID found for Order ID: ${completeOrder.id}. Skipping notification.`);
             }
         } catch (error) {
             console.error('Upload payment slip error:', error);
