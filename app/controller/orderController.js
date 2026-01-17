@@ -228,6 +228,8 @@ class OrderController {
                     message: 'Access denied. You can only view your own orders'
                 });
             }
+            const slip = await PaymentSlipModel.getPaymentSlipByOrderId(id);
+            order.payment_slip = slip || null;
 
             res.status(200).json({
                 success: true,

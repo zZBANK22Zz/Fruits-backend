@@ -116,8 +116,8 @@ class LineMessagingService {
                             action: {
                                 type: "uri",
                                 label: "ดูรายละเอียดออเดอร์",
-                                // Construct the URL as requested: https://[URL]/bills/BillPage?invoiceId=[invoiceId]
-                                uri: (process.env.FRONTEND_URL || 'https://liff.line.me').replace(/\/$/, '') + `/bills/BillPage?invoiceId=${invoiceId || ''}`
+                                // Fix: Passing orderId instead of invoiceId to match frontend fetchOrderById utility
+                                uri: (process.env.FRONTEND_URL || 'https://liff.line.me').replace(/\/$/, '') + `/bills/BillPage?orderId=${order.id}`
                             },
                             style: "primary",
                             color: "#1DB446"

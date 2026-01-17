@@ -1,6 +1,7 @@
 const InvoiceModel = require('../model/invoiceModel');
 const OrderModel = require('../model/orderModel');
 const PDFService = require('../services/pdfService');
+const PaymentSlipModel = require('../model/paymentSlipModel');
 
 class InvoiceController {
     // Generate invoice for order (called automatically when order status = paid)
@@ -78,9 +79,12 @@ class InvoiceController {
                 });
             }
 
-            // Get order items
+            // Get order items and payment slip
             const order = await OrderModel.getOrderById(invoice.order_id);
             invoice.items = order ? order.items : [];
+            
+            const slip = await PaymentSlipModel.getPaymentSlipByOrderId(invoice.order_id);
+            invoice.payment_slip = slip || null;
 
             res.status(200).json({
                 success: true,
