@@ -20,7 +20,7 @@ class OrderController {
         if (!isOldCommitted && isNewCommitted) {
             const orderItems = await OrderModel.getOrderItems(orderId, client);
             for (const item of orderItems) {
-                const fruit = await FruitModel.reduceStock(item.fruit_id, item.quantity);
+                const fruit = await FruitModel.reduceStock(item.fruit_id, item.quantity, client);
                 if (!fruit) {
                     throw new Error(`Insufficient stock for fruit ID ${item.fruit_id}`);
                 }
@@ -31,7 +31,7 @@ class OrderController {
         if (isOldCommitted && newStatus === 'cancelled') {
             const orderItems = await OrderModel.getOrderItems(orderId, client);
             for (const item of orderItems) {
-                await FruitModel.restoreStock(item.fruit_id, item.quantity);
+                await FruitModel.restoreStock(item.fruit_id, item.quantity, client);
             }
         }
     }

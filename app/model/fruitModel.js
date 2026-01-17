@@ -239,27 +239,29 @@ class FruitModel {
     }
 
     // Reduce stock (when order is confirmed)
-    static async reduceStock(fruitId, quantity) {
+    static async reduceStock(fruitId, quantity, client = null) {
+        const db = client || pool;
         const query = `
             UPDATE fruits 
             SET stock = stock - $1, updated_at = CURRENT_TIMESTAMP
             WHERE id = $2 AND stock >= $1
             RETURNING *
         `;
-        const result = await pool.query(query, [quantity, fruitId]);
+        const result = await db.query(query, [quantity, fruitId]);
         return result.rows[0];
     }
 
     // Restore stock by weight (when order is cancelled)
     // weight: weight in kilograms (can be decimal like 1.5, 2.5, etc.)
-    static async restoreStock(fruitId, weight) {
+    static async restoreStock(fruitId, weight, client = null) {
+        const db = client || pool;
         const query = `
             UPDATE fruits 
             SET stock = stock + $1, updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             RETURNING *
         `;
-        const result = await pool.query(query, [weight, fruitId]);
+        const result = await db.query(query, [weight, fruitId]);
         return result.rows[0];
     }
 
