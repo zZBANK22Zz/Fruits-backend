@@ -7,6 +7,7 @@ const PaymentSlipModel = require('../model/paymentSlipModel');
 const LineMessagingService = require('../services/lineMessagingService');
 const NotificationModel = require('../model/notificationModel');
 const UserModel = require('../model/userModel');
+const InvoiceModel = require('../model/invoiceModel');
 
 class OrderController {
     // Helper to manage stock changes based on status transitions
@@ -230,6 +231,14 @@ class OrderController {
             }
             const slip = await PaymentSlipModel.getPaymentSlipByOrderId(id);
             order.payment_slip = slip || null;
+
+            // Fetch associated invoice details for the receipt page
+            const invoice = await InvoiceModel.getInvoiceByOrderId(id);
+            if (invoice) {
+                order.invoice_number = invoice.invoice_number;
+                order.payment_date = invoice.payment_date;
+                order.invoice_id = invoice.id;
+            }
 
             res.status(200).json({
                 success: true,
