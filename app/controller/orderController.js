@@ -700,7 +700,7 @@ class OrderController {
                 });
             }
 
-            const order = await OrderModel.getOrderById(orderId);
+            const order = await OrderModel.getOrderById(orderId, client);
             if (!order) {
                 return res.status(404).json({
                     success: false,
