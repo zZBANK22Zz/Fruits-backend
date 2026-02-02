@@ -172,7 +172,12 @@ class InvoiceController {
             const userId = req.user.id;
             const userRole = req.user.role;
 
-            const invoice = await InvoiceModel.getInvoiceById(id);
+            let invoice = await InvoiceModel.getInvoiceById(id);
+
+            // Fallback: If not found by ID, try finding by Order ID (common if frontend passes order_id)
+            if (!invoice) {
+                invoice = await InvoiceModel.getInvoiceByOrderId(id);
+            }
 
             if (!invoice) {
                 return res.status(404).json({
