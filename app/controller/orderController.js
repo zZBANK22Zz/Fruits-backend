@@ -8,6 +8,7 @@ const LineMessagingService = require('../services/lineMessagingService');
 const NotificationModel = require('../model/notificationModel');
 const UserModel = require('../model/userModel');
 const InvoiceModel = require('../model/invoiceModel');
+const DeliveryConfirmationModel = require('../model/deliveryConfirmationModel');
 
 class OrderController {
     // Helper to manage stock changes based on status transitions
@@ -239,6 +240,10 @@ class OrderController {
                 order.payment_date = invoice.payment_date;
                 order.invoice_id = invoice.id;
             }
+
+            // Fetch delivery confirmation if available
+            const delivery = await DeliveryConfirmationModel.getDeliveryConfirmationByOrderId(id);
+            order.delivery_confirmation = delivery || null;
 
             res.status(200).json({
                 success: true,
@@ -666,6 +671,93 @@ class OrderController {
                 message: 'Internal server error',
                 error: error.message
             });
+        }
+    }
+    // Delivery confirmation (admin upload proof of delivery)
+    static async confirmDelivery(req, res) {
+        const client = await pool.connect();
+        try {
+            const { id: orderId } = req.params;
+            const { 
+                delivery_image, 
+                delivery_date, 
+                delivery_time, 
+                sender_name, 
+                receiver_name, 
+                receiver_phone, 
+                receiver_address 
+            } = req.body;
+
+            if (!delivery_image || !delivery_date || !delivery_time || !sender_name) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Required delivery fields are missing (image, date, time, sender name)'
+                });
+            }
+
+            const order = await OrderModel.getOrderById(orderId);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Begin transaction
+            await client.query('BEGIN');
+
+            try {
+                // 1. Create delivery confirmation
+                const deliveryRecord = await DeliveryConfirmationModel.createDeliveryConfirmation({
+                    order_id: orderId,
+                    delivery_image,
+                    delivery_date: new Date(delivery_date),
+                    delivery_time,
+                    sender_name,
+                    receiver_name: receiver_name || order.username,
+                    receiver_phone: receiver_phone || order.phone,
+                    receiver_address: receiver_address || order.shipping_address
+                }, client);
+
+                // 2. Update order status to 'shipped'
+                const oldStatus = order.status;
+                const newStatus = 'shipped';
+
+                // Manage stock for shipping (should have been reduced at 'paid' or earlier, 
+                // but handleStockManagement handles status transitions safely)
+                await OrderController.handleStockManagement(orderId, oldStatus, newStatus, client);
+                await OrderModel.updateOrderStatus(orderId, newStatus, client);
+
+                await client.query('COMMIT');
+
+                const updatedOrder = await OrderModel.getOrderById(orderId);
+
+                res.status(201).json({
+                    success: true,
+                    message: 'Delivery confirmed and order status updated to shipped.',
+                    data: {
+                        delivery: deliveryRecord,
+                        order: updatedOrder
+                    }
+                });
+
+                // Send LIFF notification if applicable
+                // (Assuming there's a service for this, similar to payment confirmation)
+                // if (updatedOrder.line_user_id) { ... }
+
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            }
+        } catch (error) {
+            console.error('Confirm delivery error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        } finally {
+            client.release();
         }
     }
 }

@@ -34,5 +34,8 @@ router.post('/:id/upload-slip', authMiddleware, OrderController.uploadPaymentSli
 // Update order status (admin only)
 router.put('/:id/status', requireAdmin, OrderController.updateOrderStatus);
 
+// Delivery confirmation (admin only)
+router.post('/:id/delivery-confirmation', requireAdmin, OrderController.confirmDelivery);
+
 module.exports = router;
 
