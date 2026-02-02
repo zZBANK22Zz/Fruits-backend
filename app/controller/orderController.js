@@ -735,7 +735,7 @@ class OrderController {
 
                 await client.query('COMMIT');
 
-                const updatedOrder = await OrderModel.getOrderById(orderId);
+                const updatedOrder = await OrderModel.getOrderById(orderId, client);
 
                 res.status(201).json({
                     success: true,
