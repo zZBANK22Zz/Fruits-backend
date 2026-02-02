@@ -758,7 +758,7 @@ class OrderController {
             console.error('Confirm delivery error:', error);
             res.status(500).json({
                 success: false,
-                message: 'Internal server error',
+                message: error.message || 'Internal server error',
                 error: error.message
             });
         } finally {
