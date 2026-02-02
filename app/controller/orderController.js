@@ -242,8 +242,13 @@ class OrderController {
             }
 
             // Fetch delivery confirmation if available
-            const delivery = await DeliveryConfirmationModel.getDeliveryConfirmationByOrderId(id);
-            order.delivery_confirmation = delivery || null;
+            try {
+                const delivery = await DeliveryConfirmationModel.getDeliveryConfirmationByOrderId(id);
+                order.delivery_confirmation = delivery || null;
+            } catch (deliveryError) {
+                console.warn('Delivery confirmation table may be missing or failed to fetch:', deliveryError.message);
+                order.delivery_confirmation = null;
+            }
 
             res.status(200).json({
                 success: true,
