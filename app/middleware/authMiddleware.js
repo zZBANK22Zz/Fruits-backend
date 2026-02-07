@@ -2,18 +2,22 @@ const AuthService = require('../services/authService');
 
 const authMiddleware = (req, res, next) => {
     try {
-        // Get token from header
+        // Get token from header or query param
+        let token = null;
         const authHeader = req.headers.authorization;
         
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({
-                success: false,
-                message: 'No token provided. Authorization header must be: Bearer <token>'
-            });
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7);
+        } else if (req.query.token) {
+            token = req.query.token;
         }
 
-        // Extract token
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'No token provided. Authorization header must be: Bearer <token> or use query param: ?token=<token>'
+            });
+        }
 
         // Verify token
         const decoded = AuthService.verifyToken(token);
