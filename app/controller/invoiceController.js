@@ -208,7 +208,7 @@ class InvoiceController {
 
             // Set response headers
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice.invoice_number}.pdf`);
+            res.setHeader('Content-Disposition', `inline; filename=invoice-${invoice.invoice_number}.pdf`);
             res.setHeader('Content-Length', pdfBuffer.length);
 
             res.send(pdfBuffer);
