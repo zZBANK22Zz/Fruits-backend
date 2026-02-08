@@ -186,16 +186,16 @@ class OrderController {
         }
     }
 
-    // Get user's most frequently bought products
+    // Get global most frequently bought products (Top Sellers)
     static async getMostBoughtProducts(req, res) {
         try {
-            const userId = req.user.id;
-            const limit = parseInt(req.query.limit) || 4;
-            const products = await OrderModel.getMostBoughtProducts(userId, limit);
+            // No user ID needed for global stats
+            const limit = parseInt(req.query.limit) || 5; // Default to 5 as requested
+            const products = await OrderModel.getMostBoughtProducts(limit);
 
             res.status(200).json({
                 success: true,
-                message: 'Most bought products fetched successfully',
+                message: 'Global best sellers fetched successfully',
                 data: { products }
             });
         } catch (error) {

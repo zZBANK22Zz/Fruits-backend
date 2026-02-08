@@ -11,7 +11,7 @@ router.post('/', authMiddleware, OrderController.createOrder);
 router.get('/my-orders', authMiddleware, OrderController.getMyOrders);
 
 // Get user's most frequently bought products - must be before /:id
-router.get('/most-bought', authMiddleware, OrderController.getMostBoughtProducts);
+router.get('/most-bought', OrderController.getMostBoughtProducts);
 
 // Get all orders (admin only) - must be before /:id
 router.get('/all', requireAdmin, OrderController.getAllOrders);

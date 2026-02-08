@@ -249,9 +249,9 @@ class OrderModel {
         }
     }
 
-    // Get user's most frequently bought products
-    static async getMostBoughtProducts(userId, limit = 4, client = null) {
-        const db = client || pool; // <--- FIX: Use db instead of pool
+    // Get global most frequently bought products
+    static async getMostBoughtProducts(limit = 5, client = null) {
+        const db = client || pool;
         const query = `
             SELECT 
                 oi.fruit_id,
@@ -269,13 +269,12 @@ class OrderModel {
             INNER JOIN orders o ON oi.order_id = o.id
             INNER JOIN fruits f ON oi.fruit_id = f.id
             LEFT JOIN categories c ON f.category_id = c.id
-            WHERE o.user_id = $1
-            AND o.status IN ('paid', 'completed')
+            WHERE o.status IN ('paid', 'completed', 'shipped', 'received', 'confirmed') 
             GROUP BY oi.fruit_id, f.id, f.name, f.description, f.price, f.stock, f.image, f.category_id, c.name
             ORDER BY total_quantity DESC, order_count DESC
-            LIMIT $2
+            LIMIT $1
         `;
-        const result = await db.query(query, [userId, limit]); // <--- FIX: Use db
+        const result = await db.query(query, [limit]);
         return result.rows;
     }
 }
