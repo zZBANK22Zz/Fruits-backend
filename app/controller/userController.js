@@ -74,7 +74,7 @@ class UserController {
     static async editUser(req, res) {
         try {
             const { userId } = req.params;
-            const { username, email, password, first_name, last_name, image } = req.body;
+            const { username, email, password, first_name, last_name, image, phone_number } = req.body;
             const currentUserId = req.user.id;
             const currentUserRole = req.user.role;
 
@@ -180,6 +180,11 @@ class UserController {
             // Only include image if provided
             if (imageBuffer !== undefined) {
                 updateData.image = imageBuffer;
+            }
+
+            // Only include phone_number if provided
+            if (phone_number !== undefined) {
+                updateData.phone_number = phone_number || null;
             }
 
             // Update user

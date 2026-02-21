@@ -159,21 +159,36 @@ class OrderModel {
 
     // Get all orders (admin)
     static async getAllOrders(client = null) {
-        const db = client || pool; // <--- FIX: Use db instead of pool
+        const db = client || pool;
         const query = `
             SELECT 
                 o.*,
                 u.username,
                 u.email,
                 u.line_user_id,
+                u.first_name,
+                u.last_name,
+                u.phone_number,
+                a.address_line,
+                a.sub_district,
+                a.district,
+                a.province,
+                a.postal_code,
                 COUNT(oi.id) as item_count
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             LEFT JOIN order_items oi ON o.id = oi.order_id
-            GROUP BY o.id, u.username, u.email, u.line_user_id
+            LEFT JOIN LATERAL (
+                SELECT * FROM addresses
+                WHERE user_id = o.user_id
+                ORDER BY id ASC
+                LIMIT 1
+            ) a ON true
+            GROUP BY o.id, u.username, u.email, u.line_user_id, u.first_name, u.last_name, u.phone_number,
+                     a.address_line, a.sub_district, a.district, a.province, a.postal_code
             ORDER BY o.created_at DESC
         `;
-        const result = await db.query(query); // <--- FIX: Use db
+        const result = await db.query(query);
         return result.rows;
     }
 

@@ -10,6 +10,7 @@ const categoryRoutes = require('./app/routes/categoryRoutes');
 const orderRoutes = require('./app/routes/orderRoutes');
 const invoiceRoutes = require('./app/routes/invoiceRoutes');
 const notificationRoutes = require('./app/routes/notificationRoutes');
+const addressRoutes = require('./app/routes/addressRoutes');
 const OrderCleanupService = require('./app/services/orderCleanupService');
 const cors = require('cors');
 
@@ -32,6 +33,11 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/addresses', addressRoutes);
+
+const DeliveryController = require('./app/controller/deliveryController');
+app.post('/api/delivery/calculate', DeliveryController.calculateFee);
 
 // Health check route
 app.get('/', (req, res) => {

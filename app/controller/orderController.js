@@ -61,6 +61,7 @@ class OrderController {
 
             // Validate and calculate totals
             let totalAmount = 0;
+            let totalOrderWeight = 0;
             const orderItems = [];
 
             for (const item of items) {
@@ -132,12 +133,58 @@ class OrderController {
                     price: fruit.price,
                     subtotal: subtotal
                 });
+
+                // Calculate weight for this item
+                const itemUnitWeight = fruit.weight ? parseFloat(fruit.weight) : 1.0; // Default 1kg if null
+                const itemTotalWeight = fruit.unit === 'piece' 
+                    ? itemUnitWeight * amount 
+                    : amount; // If sold by kg, amount IS the weight
+                
+                totalOrderWeight += itemTotalWeight;
             }
+
+            // Calculate Delivery Fee
+            const AddressModel = require('../model/addressModel');
+            const DeliveryService = require('../services/deliveryService');
+            let deliveryFee = 0;
+
+            // We need address_id to get coordinates. 
+            // If frontend provided address_id, use it. 
+            // If not, we try to match the shipping_address string to a user's address (fallback).
+            if (req.body.address_id) {
+                const userAddress = await AddressModel.findById(req.body.address_id);
+                if (userAddress) {
+                    try {
+                        deliveryFee = await DeliveryService.calculateDeliveryFee(userAddress, totalOrderWeight);
+                    } catch (err) {
+                        console.warn('Delivery fee calculation failed:', err.message);
+                        // Fallback: 0 or standard fee? keeping 0 for now or maybe a default.
+                    }
+                }
+            } else {
+                // Try to find address by string match for this user
+                try {
+                    const userAddresses = await AddressModel.findByUserId(userId);
+                    const matchingAddr = userAddresses.find(a => 
+                        `${a.address_line}, ${a.sub_district}, ${a.district}, ${a.province}, ${a.postal_code}` === shipping_address ||
+                        a.address_line === shipping_address // Simple match
+                    );
+                    
+                    if (matchingAddr) {
+                         deliveryFee = await DeliveryService.calculateDeliveryFee(matchingAddr, totalOrderWeight);
+                    }
+                } catch (err) {
+                    console.warn('Address lookup for delivery fee failed:', err.message);
+                }
+            }
+
+            totalAmount += deliveryFee;
 
             // Create order
             const orderData = {
                 user_id: userId,
                 total_amount: totalAmount,
+                delivery_fee: deliveryFee,
                 shipping_address,
                 shipping_city: shipping_city || null,
                 shipping_postal_code: shipping_postal_code || null,
@@ -145,6 +192,8 @@ class OrderController {
                 payment_method: payment_method || 'Thai QR PromptPay',
                 notes: notes || null
             };
+
+
 
             const order = await OrderModel.createOrder(orderData);
             await OrderModel.createOrderItems(order.id, orderItems);
