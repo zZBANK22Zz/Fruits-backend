@@ -37,5 +37,11 @@ router.put('/:id/status', requireAdmin, OrderController.updateOrderStatus);
 // Delivery confirmation (admin only)
 router.post('/:id/delivery-confirmation', requireAdmin, OrderController.confirmDelivery);
 
+// Generate delivery QR code (admin only)
+router.post('/:id/dispatch-qr', requireAdmin, OrderController.generateDeliveryQRCode);
+
+// Confirm delivery via QR code scan (public/customer endpoint)
+router.post('/confirm-delivery/qr', OrderController.confirmDeliveryByQR);
+
 module.exports = router;
 

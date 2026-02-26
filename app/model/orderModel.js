@@ -264,6 +264,30 @@ class OrderModel {
         }
     }
 
+    // Update order delivery QR code
+    static async updateDeliveryQRCode(orderId, qrCodeStr, client = null) {
+        const db = client || pool;
+        const query = `
+            UPDATE orders 
+            SET delivery_qr_code = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING *
+        `;
+        const result = await db.query(query, [qrCodeStr, orderId]);
+        return result.rows[0];
+    }
+
+    // Get order by delivery QR code
+    static async getOrderByDeliveryQRCode(qrCodeStr, client = null) {
+        const db = client || pool;
+        const query = `
+            SELECT * FROM orders 
+            WHERE delivery_qr_code = $1
+        `;
+        const result = await db.query(query, [qrCodeStr]);
+        return result.rows.length ? result.rows[0] : null;
+    }
+
     // Get global most frequently bought products
     static async getMostBoughtProducts(limit = 5, client = null) {
         const db = client || pool;

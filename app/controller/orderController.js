@@ -9,6 +9,7 @@ const NotificationModel = require('../model/notificationModel');
 const UserModel = require('../model/userModel');
 const InvoiceModel = require('../model/invoiceModel');
 const DeliveryConfirmationModel = require('../model/deliveryConfirmationModel');
+const crypto = require('crypto');
 
 class OrderController {
     // Helper to manage stock changes based on status transitions
@@ -808,6 +809,135 @@ class OrderController {
             res.status(500).json({
                 success: false,
                 message: error.message || 'Internal server error',
+                error: error.message
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Generate Delivery QR Code (Admin only)
+    static async generateDeliveryQRCode(req, res) {
+        const client = await pool.connect();
+        try {
+            const { id: orderId } = req.params;
+
+            const order = await OrderModel.getOrderById(orderId, client);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Order not found'
+                });
+            }
+
+            // Create a unique token and update the DB
+            const qrToken = crypto.randomBytes(16).toString('hex');
+            
+            await OrderModel.updateDeliveryQRCode(orderId, qrToken, client);
+            // Optionally update state to delivering if it isn't already
+            if (order.status !== 'delivering' && order.status !== 'shipped' && order.status !== 'completed' && order.status !== 'received' && order.status !== 'cancelled') {
+                await OrderController.handleStockManagement(orderId, order.status, 'delivering', client);
+                await OrderModel.updateOrderStatus(orderId, 'delivering', client);
+            }
+
+            const completeOrder = await OrderModel.getOrderById(orderId, client);
+
+            res.status(200).json({
+                success: true,
+                message: 'Delivery QR Code generated successfully',
+                data: {
+                    order: completeOrder,
+                    qr_token: qrToken,
+                    qr_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/delivery-confirm/${qrToken}`
+                }
+            });
+        } catch (error) {
+            console.error('Generate Delivery QR code error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        } finally {
+            client.release();
+        }
+    }
+
+    // Confirm Delivery by QR Code
+    static async confirmDeliveryByQR(req, res) {
+        const client = await pool.connect();
+        try {
+            const { qrToken } = req.body;
+
+            if (!qrToken) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'QR Token is required'
+                });
+            }
+
+            const order = await OrderModel.getOrderByDeliveryQRCode(qrToken, client);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Invalid or expired QR code'
+                });
+            }
+
+            if (order.status === 'completed' || order.status === 'received') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Order has already been confirmed as delivered'
+                });
+            }
+
+            await client.query('BEGIN');
+            try {
+                const oldStatus = order.status;
+                const newStatus = 'received';
+
+                await OrderController.handleStockManagement(order.id, oldStatus, newStatus, client);
+                await OrderModel.updateOrderStatus(order.id, newStatus, client);
+
+                // Option to clear the QR code so it can't be reused, or leave it for history. Let's leave it.
+
+                await client.query('COMMIT');
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            }
+
+            const completeOrder = await OrderModel.getOrderById(order.id, client);
+
+            // Trigger notification
+            try {
+                if (completeOrder.user_id) {
+                    await NotificationModel.createNotification({
+                        user_id: completeOrder.user_id,
+                        title: 'จัดส่งสำเร็จ / สินค้าถึงมือคุณแล้ว',
+                        message: `รายการสั่งซื้อที่ ${completeOrder.order_number} ได้รับการยืนยันการรับสินค้าแล้ว ขอบคุณที่ใช้บริการครับ`,
+                        type: 'status_update',
+                        related_id: completeOrder.id
+                    });
+                }
+                if (completeOrder.line_user_id) {
+                    LineMessagingService.sendDeliveryConfirmation(completeOrder.line_user_id, completeOrder);
+                }
+            } catch (notificationError) {
+                console.error('Failed to create notification on QR confirm:', notificationError.message);
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Order delivery confirmed successfully',
+                data: { order: completeOrder }
+            });
+
+        } catch (error) {
+            console.error('Confirm Delivery by QR error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
                 error: error.message
             });
         } finally {
