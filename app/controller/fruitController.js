@@ -63,7 +63,7 @@ class FruitController {
     // Create new fruit (admin only)
     static async createFruit(req, res) {
         try {
-            const { name, description, price, stock, image, category_id } = req.body;
+            const { name, description, price, stock, image, category_id, selling_options } = req.body;
 
             // Validation
             if (!name || !price) {
@@ -106,9 +106,10 @@ class FruitController {
                 name,
                 description: description || null,
                 price: parseFloat(price),
-                stock: stock !== undefined && stock !== null ? parseFloat(stock) : 0, // Stock in unit from category
+                stock: stock !== undefined && stock !== null ? parseFloat(stock) : 0,
                 image: image || null,
-                category_id: category_id || null
+                category_id: category_id || null,
+                selling_options: selling_options || null
             };
 
             const fruit = await FruitModel.createFruit(fruitData);
@@ -135,7 +136,7 @@ class FruitController {
     static async updateFruit(req, res) {
         try {
             const { id } = req.params;
-            const { name, description, price, stock, image, category_id } = req.body;
+            const { name, description, price, stock, image, category_id, selling_options } = req.body;
 
             // Check if fruit exists
             const existingFruit = await FruitModel.getFruitById(id);
@@ -147,7 +148,7 @@ class FruitController {
             }
 
             // Validation - at least one field should be provided
-            if (!name && !description && !price && stock === undefined && !image && category_id === undefined) {
+            if (!name && !description && !price && stock === undefined && !image && category_id === undefined && selling_options === undefined) {
                 return res.status(400).json({
                     success: false,
                     message: 'At least one field must be provided for update'
@@ -198,9 +199,10 @@ class FruitController {
                 name: name || existingFruit.name,
                 description: description !== undefined ? description : existingFruit.description,
                 price: price !== undefined ? parseFloat(price) : existingFruit.price,
-                stock: stock !== undefined ? parseFloat(stock) : existingFruit.stock, // Stock in unit from category
+                stock: stock !== undefined ? parseFloat(stock) : existingFruit.stock,
                 image: image !== undefined ? image : existingFruit.image,
-                category_id: category_id !== undefined ? category_id : existingFruit.category_id
+                category_id: category_id !== undefined ? category_id : existingFruit.category_id,
+                selling_options: selling_options !== undefined ? selling_options : undefined
             };
 
             await FruitModel.updateFruit(id, fruitData);

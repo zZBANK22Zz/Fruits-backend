@@ -30,6 +30,8 @@ class FruitModel {
                     f.category_id,
                     c.name as category_name,
                     COALESCE(c.unit, 'kg') as unit,
+                    f.selling_options,
+                    f.estimated_weight_kg,
                     f.created_at,
                     f.updated_at
                 FROM fruits f
@@ -47,6 +49,8 @@ class FruitModel {
                     f.category_id,
                     c.name as category_name,
                     'kg' as unit,
+                    f.selling_options,
+                    f.estimated_weight_kg,
                     f.created_at,
                     f.updated_at
                 FROM fruits f
@@ -90,6 +94,8 @@ class FruitModel {
                     f.category_id,
                     c.name as category_name,
                     COALESCE(c.unit, 'kg') as unit,
+                    f.selling_options,
+                    f.estimated_weight_kg,
                     f.created_at,
                     f.updated_at
                 FROM fruits f
@@ -107,6 +113,8 @@ class FruitModel {
                     f.category_id,
                     c.name as category_name,
                     'kg' as unit,
+                    f.selling_options,
+                    f.estimated_weight_kg,
                     f.created_at,
                     f.updated_at
                 FROM fruits f
@@ -158,6 +166,8 @@ class FruitModel {
                     f.category_id,
                     c.name as category_name,
                     COALESCE(c.unit, 'kg') as unit,
+                    f.selling_options,
+                    f.estimated_weight_kg,
                     f.created_at,
                     f.updated_at
                 FROM fruits f
@@ -176,6 +186,8 @@ class FruitModel {
                     f.category_id,
                     c.name as category_name,
                     'kg' as unit,
+                    f.selling_options,
+                    f.estimated_weight_kg,
                     f.created_at,
                     f.updated_at
                 FROM fruits f
@@ -193,15 +205,17 @@ class FruitModel {
 
     //Create new fruit
     static async createFruit(fruitData) {
-        const { name, description, price, stock, image, category_id } = fruitData;
+        const { name, description, price, stock, image, category_id, selling_options, estimated_weight_kg } = fruitData;
         // Convert base64 image string to Buffer if provided
         const imageBuffer = image ? Buffer.from(image, 'base64') : null;
+        // selling_options: array of {label, unit, price} or null
+        const sellingOptionsJson = selling_options ? JSON.stringify(selling_options) : null;
         const query = `
-            INSERT INTO fruits (name, description, price, stock, image, category_id) 
-            VALUES ($1, $2, $3, $4, $5, $6) 
+            INSERT INTO fruits (name, description, price, stock, image, category_id, selling_options, estimated_weight_kg) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
             RETURNING *
         `;
-        const result = await pool.query(query, [name, description, price, stock, imageBuffer, category_id]);
+        const result = await pool.query(query, [name, description, price, stock, imageBuffer, category_id, sellingOptionsJson, estimated_weight_kg]);
         const fruit = result.rows[0];
         // Convert binary image data to base64
         return {
@@ -212,22 +226,42 @@ class FruitModel {
 
     //Update fruit
     static async updateFruit(id, fruitData) {
-        const { name, description, price, stock, image, category_id } = fruitData;
+        const { name, description, price, stock, image, category_id, selling_options, estimated_weight_kg } = fruitData;
         // Convert base64 image string to Buffer if provided
         const imageBuffer = image ? Buffer.from(image, 'base64') : null;
-        const query = `
-            UPDATE fruits 
-            SET name = $1, description = $2, price = $3, stock = $4, image = $5, category_id = $6, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $7 
-            RETURNING *
-        `;
-        const result = await pool.query(query, [name, description, price, stock, imageBuffer, category_id, id]);
-        const fruit = result.rows[0];
-        // Convert binary image data to base64
-        return {
-            ...fruit,
-            image: fruit.image ? fruit.image.toString('base64') : null
-        };
+        // selling_options: array of {label, unit, price} or null
+        const sellingOptionsJson = selling_options !== undefined
+            ? (selling_options ? JSON.stringify(selling_options) : null)
+            : undefined;
+        
+        // Build query dynamically to support optional selling_options update
+        if (sellingOptionsJson !== undefined) {
+            const query = `
+                UPDATE fruits 
+                SET name = $1, description = $2, price = $3, stock = $4, image = $5, category_id = $6, selling_options = $7, estimated_weight_kg = $8, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $9 
+                RETURNING *
+            `;
+            const result = await pool.query(query, [name, description, price, stock, imageBuffer, category_id, sellingOptionsJson, estimated_weight_kg, id]);
+            const fruit = result.rows[0];
+            return {
+                ...fruit,
+                image: fruit.image ? fruit.image.toString('base64') : null
+            };
+        } else {
+            const query = `
+                UPDATE fruits 
+                SET name = $1, description = $2, price = $3, stock = $4, image = $5, category_id = $6, estimated_weight_kg = $7, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $8 
+                RETURNING *
+            `;
+            const result = await pool.query(query, [name, description, price, stock, imageBuffer, category_id, estimated_weight_kg, id]);
+            const fruit = result.rows[0];
+            return {
+                ...fruit,
+                image: fruit.image ? fruit.image.toString('base64') : null
+            };
+        }
     }
 
 
