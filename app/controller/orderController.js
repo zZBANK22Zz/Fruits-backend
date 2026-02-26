@@ -894,7 +894,7 @@ class OrderController {
             await client.query('BEGIN');
             try {
                 const oldStatus = order.status;
-                const newStatus = 'received';
+                const newStatus = 'shipped';
 
                 await OrderController.handleStockManagement(order.id, oldStatus, newStatus, client);
                 await OrderModel.updateOrderStatus(order.id, newStatus, client);
