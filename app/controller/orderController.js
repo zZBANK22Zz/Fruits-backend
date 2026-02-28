@@ -14,7 +14,7 @@ const crypto = require('crypto');
 class OrderController {
     // Helper to manage stock changes based on status transitions
     static async handleStockManagement(orderId, oldStatus, newStatus, client) {
-        const committedStatuses = ['confirmed', 'paid', 'preparing', 'completed', 'shipped', 'received'];
+        const committedStatuses = ['confirmed', 'paid', 'preparing', 'completed', 'shipped', 'received', 'delivering'];
         
         const isOldCommitted = committedStatuses.includes(oldStatus);
         const isNewCommitted = committedStatuses.includes(newStatus);
