@@ -412,6 +412,16 @@ class OrderController {
                 message: 'Order status updated successfully',
                 data: { order: completeOrder }
             });
+
+            // Send LINE status update notification in background (non-blocking)
+            if (completeOrder && completeOrder.line_user_id && oldStatus !== status) {
+                LineMessagingService.sendOrderStatusUpdate(
+                    completeOrder.line_user_id,
+                    completeOrder,
+                    oldStatus,
+                    status
+                );
+            }
         } catch (error) {
             console.error('Update order status error:', error);
             res.status(500).json({

@@ -45,6 +45,103 @@ class LineMessagingService {
     }
 
     /**
+     * Send a simple text message when order status changes
+     * @param {string} lineUserId - User's LINE ID
+     * @param {Object} order - Full order object (with id, order_number, status, etc.)
+     * @param {string} oldStatus - Previous status
+     * @param {string} newStatus - New status
+     */
+    static async sendOrderStatusUpdate(lineUserId, order, oldStatus, newStatus) {
+        if (!lineUserId || !config.channelAccessToken) {
+            console.log('LINE Messaging not configured or User ID missing. Skipping status update notification.');
+            return;
+        }
+
+        try {
+            const statusLabels = {
+                pending: 'รอดำเนินการ',
+                confirmed: 'ยืนยันคำสั่งซื้อแล้ว',
+                processing: 'กำลังดำเนินการ',
+                paid: 'ชำระเงินแล้ว',
+                cancelled: 'ยกเลิกแล้ว',
+                received: 'ร้านค้าได้รับออเดอร์แล้ว',
+                preparing: 'กำลังเตรียมสินค้า',
+                completed: 'เตรียมสินค้าเสร็จแล้ว',
+                shipped: 'จัดส่งแล้ว',
+                delivering: 'กำลังจัดส่ง',
+            };
+
+            const labelOld = statusLabels[oldStatus] || oldStatus || '-';
+            const labelNew = statusLabels[newStatus] || newStatus || '-';
+
+            const baseUrl = (process.env.FRONTEND_URL || 'https://liff.line.me').replace(/\/$/, '');
+            const orderUrl = `${baseUrl}/bills/BillPage?orderId=${order.id}`;
+
+            const messageText =
+                `สถานะคำสั่งซื้อของคุณ ${order.order_number} มีการเปลี่ยนแปลง\n` +
+                `จาก: ${labelOld}\n` +
+                `เป็น: ${labelNew}\n\n` +
+                `ดูรายละเอียดเพิ่มเติมได้ที่:\n${orderUrl}`;
+
+            console.log(`[LINE] Sending status update for order ${order.order_number}: ${oldStatus} -> ${newStatus}`);
+
+            await client.pushMessage({
+                to: lineUserId,
+                messages: [
+                    {
+                        type: 'text',
+                        text: messageText,
+                    },
+                ],
+            });
+        } catch (error) {
+            console.error('[LINE] Error sending order status update:', error.response?.data || error.message);
+            if (error.response?.data) {
+                console.error('[LINE] Detailed error info:', JSON.stringify(error.response.data));
+            }
+        }
+    }
+
+    /**
+     * Send delivery confirmation message when order is marked as shipped/received
+     * @param {string} lineUserId
+     * @param {Object} order
+     */
+    static async sendDeliveryConfirmation(lineUserId, order) {
+        if (!lineUserId || !config.channelAccessToken) {
+            console.log('LINE Messaging not configured or User ID missing. Skipping delivery confirmation notification.');
+            return;
+        }
+
+        try {
+            const baseUrl = (process.env.FRONTEND_URL || 'https://liff.line.me').replace(/\/$/, '');
+            const orderUrl = `${baseUrl}/bills/BillPage?orderId=${order.id}`;
+
+            const messageText =
+                `จัดส่งสำเร็จแล้ว! 📦\n` +
+                `คำสั่งซื้อหมายเลข ${order.order_number} ถูกจัดส่งถึงคุณเรียบร้อยแล้ว\n\n` +
+                `ดูรายละเอียดคำสั่งซื้อและใบเสร็จได้ที่:\n${orderUrl}`;
+
+            console.log(`[LINE] Sending delivery confirmation for order ${order.order_number} to ${lineUserId}`);
+
+            await client.pushMessage({
+                to: lineUserId,
+                messages: [
+                    {
+                        type: 'text',
+                        text: messageText,
+                    },
+                ],
+            });
+        } catch (error) {
+            console.error('[LINE] Error sending delivery confirmation:', error.response?.data || error.message);
+            if (error.response?.data) {
+                console.error('[LINE] Detailed error info:', JSON.stringify(error.response.data));
+            }
+        }
+    }
+
+    /**
      * Create a Flex Message object for payment confirmation
      * @param {Object} order - Order details
      * @param {number|string} invoiceId - Invoice ID
